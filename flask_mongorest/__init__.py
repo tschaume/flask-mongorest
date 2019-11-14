@@ -19,10 +19,14 @@ def register_class(app, klass, **kwargs):
     pk_type = kwargs.pop('pk_type', 'string')
     view_func = klass.as_view(name)
     if List in klass.methods:
-        app.add_url_rule(url, defaults={'pk': None}, view_func=view_func, methods=[List.method], **kwargs)
+        app.add_url_rule(url, defaults={'pk': None}, view_func=view_func,
+                         methods=[List.method], endpoint=view_func.__name__+'List', **kwargs)
     if Create in klass.methods or BulkUpdate in klass.methods:
-        app.add_url_rule(url, view_func=view_func, methods=[x.method for x in klass.methods if x in (Create, BulkUpdate)], **kwargs)
-    app.add_url_rule('%s<%s:%s>/' % (url, pk_type, 'pk'), view_func=view_func, methods=[x.method for x in klass.methods if x not in (List, BulkUpdate)], **kwargs)
+        app.add_url_rule(url, view_func=view_func, methods=[
+            x.method for x in klass.methods if x in (Create, BulkUpdate)
+        ], endpoint=view_func.__name__+'CreateBulkUpdate', **kwargs)
+    app.add_url_rule('%s<%s:%s>/' % (url, pk_type, 'pk'), view_func=view_func,
+                     methods=[x.method for x in klass.methods if x not in (List, BulkUpdate)], **kwargs)
 
 class MongoRest(object):
     def __init__(self, app, **kwargs):
