@@ -3,6 +3,7 @@ import mongoengine
 
 from bson.dbref import DBRef
 from bson.objectid import ObjectId
+from dict_deep import deep_get
 from flask import request, url_for
 try:
     from urllib.parse import urlparse
@@ -255,7 +256,7 @@ class Resource(object):
         else:
             for field in only_fields:
                 actual_field = self._reverse_rename_fields.get(field, field)
-                if actual_field in all_fields_set:
+                if actual_field in all_fields_set or any(actual_field.startswith(f) for f in all_fields_set):
                     requested_fields.append(actual_field)
 
         return requested_fields
@@ -358,10 +359,10 @@ class Resource(object):
         if has_field_instance:
             field_value = obj
         elif isinstance(obj, dict):
-            return obj[field_name]
+            return deep_get(obj, field_name)
         else:
             try:
-                field_value = getattr(obj, field_name)
+                field_value = deep_get(obj, field_name)
             except AttributeError:
                 raise UnknownFieldError
 
