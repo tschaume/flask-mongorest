@@ -3,7 +3,7 @@ import mongoengine
 
 from bson.dbref import DBRef
 from bson.objectid import ObjectId
-from dict_deep import deep_get
+from dict_deep import deep_get, deep_set
 from flask import request, url_for
 try:
     from urllib.parse import urlparse
@@ -497,7 +497,8 @@ class Resource(object):
                 data[renamed_field] = value
             else:
                 try:
-                    data[renamed_field] = self.get_field_value(obj, field, **kwargs)
+                    val = self.get_field_value(obj, field, **kwargs)
+                    deep_set(data, renamed_field, val, default=lambda: dict())
                 except UnknownFieldError:
                     try:
                         data[renamed_field] = self.value_for_field(obj, field)
