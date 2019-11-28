@@ -1,5 +1,6 @@
 class Operator(object):
     op = 'exact'
+    typ = 'string'
 
     # Can be overridden via constructor.
     allow_negation = False
@@ -33,24 +34,28 @@ class Ne(Operator):
 
 class Lt(Operator):
     op = 'lt'
+    typ = 'number'
 
     def prepare_queryset_kwargs(self, field, value, negate):
         return {'__'.join(filter(None, [field, self.op])): try_float(value)}
 
 class Lte(Operator):
     op = 'lte'
+    typ = 'number'
 
     def prepare_queryset_kwargs(self, field, value, negate):
         return {'__'.join(filter(None, [field, self.op])): try_float(value)}
 
 class Gt(Operator):
     op = 'gt'
+    typ = 'number'
 
     def prepare_queryset_kwargs(self, field, value, negate):
         return {'__'.join(filter(None, [field, self.op])): try_float(value)}
 
 class Gte(Operator):
     op = 'gte'
+    typ = 'number'
 
     def prepare_queryset_kwargs(self, field, value, negate):
         return {'__'.join(filter(None, [field, self.op])): try_float(value)}
@@ -71,6 +76,7 @@ class IExact(Operator):
 
 class In(Operator):
     op = 'in'
+    typ = 'array'
 
     def prepare_queryset_kwargs(self, field, value, negate):
         # only use 'in' or 'nin' if multiple values are specified
@@ -101,6 +107,7 @@ class IEndswith(Operator):
 
 class Boolean(Operator):
     op = 'exact'
+    typ = 'boolean'
 
     def prepare_queryset_kwargs(self, field, value, negate):
         if value == 'false':
