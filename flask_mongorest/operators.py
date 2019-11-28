@@ -92,15 +92,9 @@ class Lt(Operator):
     def prepare_queryset_kwargs(self, field, value, negate):
         return {'__'.join(filter(None, [field, self.op])): try_float(value)}
 
-    def prepare_queryset_kwargs(self, field, value, negate):
-        return {'__'.join(filter(None, [field, self.op])): try_float(value)}
-
 class Lte(Operator):
     op = 'lte'
     typ = 'number'
-
-    def prepare_queryset_kwargs(self, field, value, negate):
-        return {'__'.join(filter(None, [field, self.op])): try_float(value)}
 
     def prepare_queryset_kwargs(self, field, value, negate):
         return {'__'.join(filter(None, [field, self.op])): try_float(value)}
@@ -112,15 +106,9 @@ class Gt(Operator):
     def prepare_queryset_kwargs(self, field, value, negate):
         return {'__'.join(filter(None, [field, self.op])): try_float(value)}
 
-    def prepare_queryset_kwargs(self, field, value, negate):
-        return {'__'.join(filter(None, [field, self.op])): try_float(value)}
-
 class Gte(Operator):
     op = 'gte'
     typ = 'number'
-
-    def prepare_queryset_kwargs(self, field, value, negate):
-        return {'__'.join(filter(None, [field, self.op])): try_float(value)}
 
     def prepare_queryset_kwargs(self, field, value, negate):
         return {'__'.join(filter(None, [field, self.op])): try_float(value)}
