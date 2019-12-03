@@ -367,7 +367,7 @@ class Resource(object):
         else:
             try:
                 field_value = deep_get(obj, field_name)
-            except AttributeError:
+            except (AttributeError, KeyError):
                 raise UnknownFieldError
 
         return self.serialize_field_value(obj, field_name, field_instance, field_value, **kwargs)
