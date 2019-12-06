@@ -38,6 +38,13 @@ from flask_mongorest.exceptions import ValidationError, UnknownFieldError
 from flask_mongorest.utils import cmp_fields, isbound, isint, equal
 
 
+def get_with_list_index(o, k):
+    try:
+        return o[int(k)]
+    except ValueError:
+        return o[k]
+
+
 class ResourceMeta(type):
     def __init__(cls, name, bases, classdict):
         if classdict.get('__metaclass__') is not ResourceMeta:
@@ -379,8 +386,8 @@ class Resource(object):
             return deep_get(obj, field_name)
         else:
             try:
-                field_value = deep_get(obj, field_name)
-            except AttributeError:
+                field_value = deep_get(obj, field_name, getter=get_with_list_index)
+            except (AttributeError, KeyError):
                 raise UnknownFieldError
 
         return self.serialize_field_value(obj, field_name, field_instance, field_value, **kwargs)
