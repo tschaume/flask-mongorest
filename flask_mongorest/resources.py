@@ -36,6 +36,13 @@ from flask_mongorest.exceptions import ValidationError, UnknownFieldError
 from flask_mongorest.utils import cmp_fields, isbound, isint, equal
 
 
+def get_with_list_index(o, k):
+    try:
+        return o[int(k)]
+    except ValueError:
+        return o[k]
+
+
 class ResourceMeta(type):
     def __init__(cls, name, bases, classdict):
         if classdict.get('__metaclass__') is not ResourceMeta:
@@ -369,7 +376,7 @@ class Resource(object):
             return deep_get(obj, field_name)
         else:
             try:
-                field_value = deep_get(obj, field_name)
+                field_value = deep_get(obj, field_name, getter=get_with_list_index)
             except (AttributeError, KeyError):
                 raise UnknownFieldError
 
@@ -433,7 +440,10 @@ class Resource(object):
 
     def serialize_list_field(self, field_instance, field_name, field_value, **kwargs):
         """Serialize each item in the list separately."""
-        return [val for val in [self.get_field_value(elem, field_name, field_instance=field_instance.field, **kwargs) for elem in field_value] if val]
+        return [val for val in [
+            self.get_field_value(elem, field_name, field_instance=field_instance.field, **kwargs)
+            for elem in field_value
+        ] if val is not None]
 
     def serialize_document_field(self, field_name, field_value, **kwargs):
         """If this field is a reference or an embedded document, either return
