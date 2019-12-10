@@ -840,6 +840,7 @@ class Resource(object):
         - Pass `qfilter` function to modify the queryset.
         """
         params = self.params
+        extra = {}
 
         custom_qs = True
         if qs is None:
@@ -855,6 +856,7 @@ class Resource(object):
         # request
         qs = self.apply_filters(qs, params)
         qs = self.apply_ordering(qs, params)
+        extra['total_count'] = qs.count()
 
         # Apply limit and skip to the queryset
         limit = None
@@ -865,6 +867,7 @@ class Resource(object):
             # no need to skip/limit if a custom `qs` was provided
             skip, limit = self.get_skip_and_limit(params)
             qs = qs.skip(skip).limit(limit+1)
+            extra['total_pages'] = int(extra['total_count']/limit) + bool(extra['total_count'] % limit)
 
         # Needs to be at the end as it returns a list, not a queryset
         if self.select_related:
@@ -892,7 +895,7 @@ class Resource(object):
         if self.related_resources_hints:
             self.fetch_related_resources(objs, self.get_requested_fields(params=params))
 
-        return objs, has_more
+        return objs, has_more, extra
 
     def save_related_objects(self, obj, parent_resources=None):
         if not parent_resources:
