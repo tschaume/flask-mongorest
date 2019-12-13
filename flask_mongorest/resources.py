@@ -938,7 +938,7 @@ class Resource(object):
 
         return objs, has_more, extra
 
-    def save_related_objects(self, obj, parent_resources=None):
+    def save_related_objects(self, obj, parent_resources=None, **kwargs):
         if not parent_resources:
             parent_resources = [self]
         else:
@@ -973,7 +973,7 @@ class Resource(object):
 
     def save_object(self, obj, **kwargs):
         self.save_related_objects(obj, **kwargs)
-        obj.save()
+        obj.save(**kwargs)
         obj.reload()
 
         self._dirty_fields = None # No longer dirty.
@@ -997,7 +997,7 @@ class Resource(object):
         obj = self.document(**update_dict)
         self._dirty_fields = update_dict.keys()
         if save:
-            self.save_object(obj)
+            self.save_object(obj, force_insert=True)
         return obj
 
     def update_object(self, obj, data=None, save=True, parent_resources=None):
