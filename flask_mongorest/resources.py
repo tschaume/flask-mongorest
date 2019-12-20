@@ -1058,11 +1058,18 @@ class Resource(object):
                 id_from_data = value and getattr(value, 'pk', value)
                 if id_from_obj != id_from_data:
                     update = True
-            elif not obj._fields[field].primary_key and not equal(getattr(obj, field), value):
+            elif getattr(obj, '_fields', None) is not None and isinstance(obj._fields.get(field), DictField):
+                self.update_object(obj[field], data=value, save=False)
+            elif getattr(obj, '_fields', None) is not None and obj._fields[field].primary_key:
+                update = False
+            elif not equal(obj.get(field), value) or not equal(getattr(obj, field), value):
                 update = True
 
             if update:
-                setattr(obj, field, value)
+                if getattr(obj, field, None) is not None:
+                    setattr(obj, field, value)
+                else:
+                    obj[field] = value
                 self._dirty_fields.append(field)
 
         if save:
