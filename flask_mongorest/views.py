@@ -5,6 +5,7 @@ import mimerender
 import mongoengine
 
 from collections import deque
+from fdict import fdict
 from flask import render_template, request
 from flask.views import MethodView
 from flask_mongorest import methods
@@ -271,8 +272,9 @@ class ResourceView(MethodView):
         else:
             obj = self._resource.get_object(pk)
             self.process_object(obj)
-            ret = self._resource.serialize(obj, params=request.args)
-            return ret
+            raw_data = fdict(self._resource.raw_data, delimiter='.')
+            fields = ','.join(raw_data.keys())
+            return self._resource.serialize(obj, params={'_fields': fields})
 
     def delete_object(self, obj, skip_post_delete=False):
         """Delete an object"""
