@@ -524,7 +524,7 @@ class Resource(object):
             else:
                 try:
                     val = self.get_field_value(obj, field, **kwargs)
-                    deep_set(data, renamed_field, val, default=lambda: dict())
+                    deep_set(data, renamed_field, val, accessor=lambda: dict())
                 except UnknownFieldError:
                     try:
                         data[renamed_field] = self.value_for_field(obj, field)
