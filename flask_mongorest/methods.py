@@ -27,5 +27,9 @@ class BulkDelete:
     method = 'DELETE'
 
 
+class Download:
+    method = 'GET'
+
+
 members = inspect.getmembers(sys.modules[__name__], inspect.isclass)
 __all__ = [m[0] for m in members]
