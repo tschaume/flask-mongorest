@@ -121,6 +121,9 @@ class Resource(object):
     # filtered query set, pulling all the references efficiently.
     select_related = False
 
+    # allow download formats
+    download_formats = []
+
     # Must start and end with a "/"
     uri_prefix = None
 
@@ -675,6 +678,8 @@ class Resource(object):
         """
         return object with fields paginated according to `fields_to_paginate`
         """
+        if self.view_method == methods.Download:
+            return obj  # no pagination when downloading
         for field, limits in self.fields_to_paginate.items():
             page = self.params.get(f'{field}_page', 1)
             per_page = self.params.get(f'{field}_per_page', limits[0])
@@ -922,6 +927,11 @@ class Resource(object):
         """
         params = self.params
         extra = {}
+
+        if self.view_method == methods.Download:
+            fmt = self.params.get('format')
+            if fmt not in self.download_formats:
+                raise ValueError(f'`format` must be one of {self.download_formats}')
 
         custom_qs = True
         if qs is None:
