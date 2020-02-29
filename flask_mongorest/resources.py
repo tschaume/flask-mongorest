@@ -86,7 +86,7 @@ class Resource(object):
     max_limit = 100
 
     # Maximum number of objects which can be bulk-updated by a single request
-    bulk_update_limit = 1000
+    bulk_update_limit = 1000  # NOTE also used for bulk delete
 
     # Map of field names to paginate with according default and maximum limits
     fields_to_paginate = {}
@@ -207,7 +207,7 @@ class Resource(object):
                     self._raw_data = json.loads(request.data.decode('utf-8'), parse_constant=self._enforce_strict_json)
                 except ValueError:
                     raise ValidationError({'error': 'The request contains invalid JSON.'})
-                if not isinstance(self._raw_data, dict):
+                if request.method == 'PUT' and not isinstance(self._raw_data, dict):
                     raise ValidationError({'error': 'JSON data must be a dict.'})
             else:
                 self._raw_data = {}
@@ -968,20 +968,13 @@ class Resource(object):
         # Evaluate the queryset
         objs = list(qs)
 
-        # Raise a validation error if bulk update would result in more than
-        # bulk_update_limit updates
-        if self.view_method in bulk_methods and len(objs) >= self.bulk_update_limit:
-            raise ValidationError({
-                'errors': ["It's not allowed to update more than %d objects at once" % self.bulk_update_limit]
-            })
-
         # Determine the value of has_more
+        has_more = False
         if self.view_method not in bulk_methods and self.view_method != methods.Download and self.paginate:
             has_more = len(objs) > limit
-            if has_more:
-                objs = objs[:-1]
-        else:
-            has_more = None
+
+        if has_more:
+            objs = objs[:-1]
 
         # bulk-fetch related resources for moar speed
         self.fetch_related_resources(

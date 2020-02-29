@@ -9,6 +9,7 @@ from collections import deque
 from gzip import GzipFile
 from io import BytesIO
 from fdict import fdict
+from collections import deque
 from flask import render_template, request
 from flask.views import MethodView
 from flask_mongorest import methods
@@ -198,7 +199,7 @@ class ResourceView(MethodView):
             return ret
 
     def post(self, **kwargs):
-        if 'pk' in kwargs:
+        if kwargs.pop('pk'):
             raise NotFound("Did you mean to use PUT?")
 
         # Set the view_method on a resource instance

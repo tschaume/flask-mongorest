@@ -35,6 +35,13 @@ def register_class(app, klass, **kwargs):
             view_func=view_func, methods=[x.method], endpoint=endpoint, **kwargs
         )
 
+    if Download in klass.methods:
+        endpoint = view_func.__name__ + Download.__name__
+        app.add_url_rule(
+            f'{url}download/<string:short_mime>/', defaults={'pk': None, 'short_mime': 'gz'},
+            view_func=view_func, methods=[Download.method], endpoint=endpoint, **kwargs
+        )
+
 class MongoRest(object):
     def __init__(self, app, **kwargs):
         self.app = app
