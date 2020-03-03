@@ -85,9 +85,6 @@ class Resource(object):
     # Only relevant if pagination is enabled.
     max_limit = 100
 
-    # Maximum number of objects which can be bulk-updated by a single request
-    bulk_update_limit = 1000  # NOTE also used for bulk delete
-
     # Map of field names to paginate with according default and maximum limits
     fields_to_paginate = {}
 
@@ -958,7 +955,7 @@ class Resource(object):
         elif not custom_qs and self.view_method != methods.Download:
             # no need to skip/limit if a custom `qs` was provided
             skip, limit = self.get_skip_and_limit(params)
-            qs = qs.skip(skip).limit(limit+1)
+            qs = qs.skip(skip).limit(limit+1)  # get one extra to determine has_more
             extra['total_pages'] = int(extra['total_count']/limit) + bool(extra['total_count'] % limit)
 
         # Needs to be at the end as it returns a list, not a queryset
@@ -970,7 +967,7 @@ class Resource(object):
 
         # Determine the value of has_more
         has_more = False
-        if self.view_method not in bulk_methods and self.view_method != methods.Download and self.paginate:
+        if self.view_method != methods.Download and self.paginate:
             has_more = len(objs) > limit
 
         if has_more:
