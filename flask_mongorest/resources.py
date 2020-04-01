@@ -5,7 +5,7 @@ from typing import Pattern
 from bson.dbref import DBRef
 from bson.objectid import ObjectId
 from dotty_dict import Dotty
-from flask import request, url_for
+from flask import has_request_context, request, url_for
 try:
     from urllib.parse import urlparse
 except ImportError: # Python 2
@@ -149,6 +149,10 @@ class Resource(object):
         2. As a _params property in the JSON payload. For example:
              { '_params': { 'status': 'active', '_limit': '10' } }
         """
+        if not has_request_context():
+            # `params` doesn't make sense if we don't have a request
+            raise AttributeError
+
         if not hasattr(self, '_params'):
             if '_params' in self.raw_data:
                 self._params = self.raw_data['_params']
@@ -175,6 +179,10 @@ class Resource(object):
     @property
     def raw_data(self):
         """Validate and return parsed JSON payload."""
+        if not has_request_context():
+            # `raw_data` doesn't make sense if we don't have a request
+            raise AttributeError
+
         if not hasattr(self, '_raw_data'):
             if request.method in ('PUT', 'POST') or request.data:
                 if request.mimetype and 'json' not in request.mimetype:
@@ -471,7 +479,7 @@ class Resource(object):
     def serialize(self, obj, **kwargs):
         """
         Given an object, serialize it, turning it into its JSON
-        respresentation.
+        representation.
         """
         if not obj:
             return {}
