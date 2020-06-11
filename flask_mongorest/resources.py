@@ -1,4 +1,5 @@
 import json
+import time
 import mongoengine
 
 from glom import glom
@@ -501,6 +502,7 @@ class Resource(object):
         Given an object, serialize it, turning it into its JSON
         representation.
         """
+        #tic = time.perf_counter()
         if not obj:
             return {}
 
@@ -556,6 +558,8 @@ class Resource(object):
                     except UnknownFieldError:
                         pass
 
+        #toc = time.perf_counter()
+        #print(f"Took {toc - tic:0.4f} seconds to serialize requested fields")
         return data._data
 
     def handle_serialization_error(self, exc, obj):
@@ -962,6 +966,7 @@ class Resource(object):
             qs = qs.select_related()
 
         # Evaluate the queryset
+        print("evaluate...")
         objs = list(qs)
 
         # Determine the value of has_more
