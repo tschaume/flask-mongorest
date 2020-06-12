@@ -42,6 +42,7 @@ except ImportError:
 from flask_mongorest import methods
 from flask_mongorest.exceptions import ValidationError, UnknownFieldError
 from flask_mongorest.utils import cmp_fields, isbound, isint, equal
+from flask_mongoengine.pagination import ListFieldPagination
 
 
 def get_with_list_index(o, k):
@@ -661,6 +662,10 @@ class Resource(object):
         # get a new one out
         if qfilter:
             qs = qfilter(qs)
+
+        if self.view_method != methods.Download:
+            qs = self.apply_field_pagination(qs)
+
         obj = qs.get(pk=pk)
 
         # We don't need to fetch related resources for DELETE requests because
@@ -674,33 +679,33 @@ class Resource(object):
 
         return obj
 
-    def paginate_fields(self, obj):
-        """
-        return object with fields paginated according to `fields_to_paginate`
-        """
-        if self.view_method == methods.Download:
-            return obj  # no pagination when downloading
+    def apply_field_pagination(self, qs, params=None):
+        """apply field pagination according to `fields_to_paginate`"""
+        if params is None:
+            params = self.params
+
+        field_attrs = {}
         for field, limits in self.fields_to_paginate.items():
-            page = self.params.get(f'{field}_page', 1)
-            per_page = self.params.get(f'{field}_per_page', limits[0])
-            # page and per_page validation
+            page = params.get(f'{field}_page', 1)
+            per_page = params.get(f'{field}_per_page', limits[0])
             if not isint(page):
                 raise ValidationError({'error': f'{field}_page must be an integer.'})
             if not isint(per_page):
                 raise ValidationError({'error': f'{field}_per_page must be an integer.'})
-            if int(per_page) > limits[1]:
-                raise ValidationError({'error': f"The per page limit ({per_page}) you set is larger than the maximum for the {field} field ({limits[1]})."})
-            if int(page) < 0:
+
+            page, per_page = int(page), int(per_page)
+            if per_page > limits[1]:
+                raise ValidationError({
+                    'error': f"Per-page limit ({per_page}) for {field} too large ({limits[1]})."
+                })
+            if page < 0:
                 raise ValidationError({'error': f'{field}_page must be a non-negative integer.'})
 
-            per_page = min(int(per_page), limits[1])
-            total_rows = len(obj[field])
-            if total_rows > 0:
-                total_pages = int(total_rows/per_page) + bool(total_rows % per_page)
-                if int(page) > total_pages:
-                    raise ValidationError({'error': f'{field}_page must be less or equal {total_pages}.'})
-                obj.data = obj.paginate_field(field, int(page), per_page=per_page).items
-        return obj
+            per_page = min(per_page, limits[1])
+            start_index = (page - 1) * per_page
+            field_attrs[field] = {"$slice": [start_index, per_page]}
+
+        return qs.fields(**field_attrs)
 
     def fetch_related_resources(self, objs, only_fields=None):
         """
@@ -949,7 +954,7 @@ class Resource(object):
         qs = self.apply_ordering(qs, params)
         extra['total_count'] = qs.count()
 
-        # Apply limit and skip to the queryset
+        # Apply pagination to the queryset (if not Download and no custom queryset provided)
         bulk_methods = {methods.BulkUpdate, methods.BulkDelete}
         limit = None
         if self.view_method in bulk_methods:
@@ -959,6 +964,7 @@ class Resource(object):
             # no need to skip/limit if a custom `qs` was provided
             skip, limit = self.get_skip_and_limit(params)
             qs = qs.skip(skip).limit(limit+1)  # get one extra to determine has_more
+            qs = self.apply_field_pagination(qs, params)
             extra['total_pages'] = int(extra['total_count']/limit) + bool(extra['total_count'] % limit)
 
         # Needs to be at the end as it returns a list, not a queryset
