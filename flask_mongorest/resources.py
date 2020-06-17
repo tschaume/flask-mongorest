@@ -2,12 +2,11 @@ import json
 import time
 import mongoengine
 
-from glom import glom
+from glom import glom, assign
 from glom.core import PathAccessError
 from typing import Pattern
 from bson.dbref import DBRef
 from bson.objectid import ObjectId
-from dotty_dict import Dotty
 from flask import has_request_context, request, url_for
 from dict_deep import deep_get
 try:
@@ -526,7 +525,7 @@ class Resource(object):
 
         # Fill in the `data` dict by serializing each of the requested fields
         # one by one.
-        data = Dotty({})
+        data = {}
         for field in requested_fields:
 
             # resolve the user-facing name of the field
@@ -551,19 +550,19 @@ class Resource(object):
                     else:  # assume queryset or list
                         value = [related_resource.serialize_field(o)
                                  for o in value]
-                data[renamed_field] = value
             else:
                 try:
-                    data[renamed_field] = self.get_field_value(obj, field, **kwargs)
+                    value = self.get_field_value(obj, field, **kwargs)
                 except UnknownFieldError:
                     try:
-                        data[renamed_field] = self.value_for_field(obj, field)
+                        value = self.value_for_field(obj, field)
                     except UnknownFieldError:
                         pass
 
-        #toc = time.perf_counter()
-        #print(f"Took {toc - tic:0.4f} seconds to serialize requested fields")
-        return data._data
+            if value is not None:
+                assign(data, renamed_field, value, missing=dict)
+
+        return data
 
     def handle_serialization_error(self, exc, obj):
         """
