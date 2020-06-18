@@ -3,8 +3,7 @@ updates:
 - package-ecosystem: pip
   directory: "/"
   schedule:
-    interval: monthly
+    interval: weekly
     time: '08:00'
     timezone: US/Pacific
   open-pull-requests-limit: 10
-  target-branch: register_class
