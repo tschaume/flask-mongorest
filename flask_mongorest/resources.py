@@ -980,7 +980,6 @@ class Resource(object):
             qs = qs.select_related()
 
         # Evaluate the queryset
-        print("evaluate...")
         objs = list(qs)
 
         # Determine the value of has_more
