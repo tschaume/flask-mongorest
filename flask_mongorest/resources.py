@@ -911,7 +911,7 @@ class Resource(object):
         extra = {}
 
         if self.view_method == methods.Download:
-            fmt = self.params.get('format')
+            fmt = params.get('format')
             if fmt not in self.download_formats:
                 raise ValueError(f'`format` must be one of {self.download_formats}')
 
@@ -1056,10 +1056,7 @@ class Resource(object):
                 update = True
 
             if update:
-                if getattr(obj, field, None) is not None:
-                    setattr(obj, field, value)
-                else:
-                    obj[field] = value
+                set_value(obj, field, value)
                 self._dirty_fields.append(field)
 
         if save:
