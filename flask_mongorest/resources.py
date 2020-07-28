@@ -285,7 +285,7 @@ class Resource(object):
 
         requested_fields = []
         if include_all or only_fields is None:
-            if include_all:
+            if include_all or self.view_method == methods.Download:
                 field_selection = all_fields_set
             else:
                 field_selection = fields
