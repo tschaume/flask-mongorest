@@ -7,6 +7,7 @@ import zipstream
 import mimerender
 import boto3
 import hashlib
+import traceback
 import mongoengine
 
 from collections import deque
