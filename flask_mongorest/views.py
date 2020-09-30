@@ -271,11 +271,22 @@ class ResourceView(MethodView):
                 })
             raw_data_deque = deque(raw_data)
             self._resource.view_method = methods.BulkCreate
-            ret = []
+            data = []
+            tic = time.perf_counter()
             while len(raw_data_deque):
                 self._resource._raw_data = raw_data_deque.popleft()
-                ret.append(self.create_object())
-            return {'data': ret, 'count': len(ret)}, '201 Created'
+                data.append(self.create_object())
+                dt = time.perf_counter() - tic
+                if dt > 50:
+                    break
+
+            count = len(data)
+            msg = f"Created {count} objects in {dt:0.1f}s ({count/dt:0.3f}/s)."
+            print(msg)
+            ret = {'data': data, 'count': count}
+            if raw_data_deque:
+                ret['warning'] = f"{msg} Remaining objects in batch skipped to avoid Server Timeout."
+            return ret, '201 Created'
         else:
             raise ValidationError({'error': 'wrong payload type'})
 
