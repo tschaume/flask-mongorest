@@ -285,7 +285,9 @@ class ResourceView(MethodView):
             print(msg)
             ret = {'data': data, 'count': count}
             if raw_data_deque:
-                ret['warning'] = f"{msg} Remaining objects in batch skipped to avoid Server Timeout."
+                remain = len(raw_data_deque)
+                msg += f" Remaining {remain} objects skipped to avoid Server Timeout."
+                ret['warning'] = msg
             return ret, '201 Created'
         else:
             raise ValidationError({'error': 'wrong payload type'})
