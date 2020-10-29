@@ -132,6 +132,10 @@ class In(Operator):
     typ = 'array'
 
     def prepare_queryset_kwargs(self, field, value, negate):
+        # this is null if the user submits an empty in expression (like
+        # "user__in=")
+        value = value or []
+
         # only use 'in' or 'nin' if multiple values are specified
         if ',' in value:
             value = value.split(',')

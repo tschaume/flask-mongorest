@@ -668,9 +668,22 @@ class Resource(object):
         # get a new one out
         if qfilter:
             qs = qfilter(qs)
+
         if self.view_method != methods.Download:
             qs = self.apply_field_pagination(qs)
-        return qs.get(pk=pk)
+
+        obj = qs.get(pk=pk)
+
+        # We don't need to fetch related resources for DELETE requests because
+        # those requests do not serialize the object (a successful DELETE
+        # simply returns a `{}`, at least by default). We still want to fetch
+        # related resources for GET and PUT.
+        if request.method != 'DELETE':
+            self.fetch_related_resources(
+                [obj], self.get_requested_fields(params=self.params)
+            )
+
+        return obj
 
     def apply_field_pagination(self, qs, params=None):
         """apply field pagination according to `fields_to_paginate`"""
@@ -705,6 +718,8 @@ class Resource(object):
         Given a list of objects and an optional list of the only fields we
         should care about, fetch these objects' related resources.
         """
+        if not self.related_resources_hints:
+            return
 
         # Create a map of field names to MongoEngine Q objects that will
         # later be used to fetch the related resources from MongoDB
@@ -969,8 +984,9 @@ class Resource(object):
             objs = objs[:-1]
 
         # bulk-fetch related resources for moar speed
-        if self.related_resources_hints:
-            self.fetch_related_resources(objs, self.get_requested_fields(params=params))
+        self.fetch_related_resources(
+            objs, self.get_requested_fields(params=params)
+        )
 
         return objs, has_more, extra
 
