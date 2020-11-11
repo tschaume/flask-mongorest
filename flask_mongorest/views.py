@@ -391,18 +391,16 @@ class ResourceView(MethodView):
     def delete_objects(self, objs):
         """Delete each object in the list one by one, and return the total count."""
         tic = time.perf_counter()
-        count = 0
+        nobjs, count = len(objs), 0
         try:
             # separately delete last object to send skip signal
-            for obj in objs[:-1]:
-                self.delete_object(obj, skip_post_delete=True)
+            for iobj, obj in enumerate(objs):
+                skip = iobj < nobjs - 1
+                self.delete_object(obj, skip_post_delete=skip)
                 count += 1
                 dt = time.perf_counter() - tic
                 if dt > 50:
                     break
-
-            self.delete_object(objs[-1])
-            count += 1
         except ValidationError as e:
             e.args[0]['count'] = count
             raise e
@@ -410,7 +408,7 @@ class ResourceView(MethodView):
             msg = f"Deleted {count} objects in {dt:0.1f}s ({count/dt:0.3f}/s)."
             print(msg)
             ret = {'count': count}
-            remain = len(objs) - count
+            remain = nobjs - count
             if remain:
                 msg += f" Remaining {remain} objects skipped to avoid Server Timeout."
                 ret['warning'] = msg
