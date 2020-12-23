@@ -89,6 +89,9 @@ class Resource(object):
     # Only relevant if pagination is enabled.
     max_limit = 100
 
+    # Maximum number of objects which can be bulk-updated by a single request
+    bulk_update_limit = 1000  # NOTE also used for bulk delete
+
     # Map of field names to paginate with according default and maximum limits
     fields_to_paginate = {}
 
