@@ -3,7 +3,6 @@ import sys
 import time
 import json
 import traceback
-import zipstream
 import mimerender
 import boto3
 import hashlib
