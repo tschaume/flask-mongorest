@@ -978,6 +978,7 @@ class Resource(object):
         if self.view_method in bulk_methods:
             # limit the number of objects that can be bulk-updated at a time
             qs = qs.limit(self.bulk_update_limit)
+            limit = self.bulk_update_limit
         elif not custom_qs and self.view_method != methods.Download:
             # no need to skip/limit if a custom `qs` was provided
             skip, limit = self.get_skip_and_limit(params)
