@@ -27,7 +27,6 @@ from urllib.parse import unquote
 
 BUCKET = os.environ.get('S3_DOWNLOADS_BUCKET', 'mongorest-downloads')
 CNAME = os.environ.get('PORTAL_CNAME')
-S3_DOWNLOAD_URL = f"https://{BUCKET}.s3.amazonaws.com"
 
 s3_client = boto3.client('s3')
 mimerender = FlaskMimeRender(global_override_input_key='short_mime')
