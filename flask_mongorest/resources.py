@@ -1,6 +1,7 @@
 import json
 import mongoengine
 
+from math import isnan
 from fastnumbers import fast_int
 from unflatten import unflatten
 from typing import Pattern
@@ -572,6 +573,9 @@ class Resource(object):
                         pass
 
             if value is not None:
+                if isinstance(value, (float, int)) and isnan(value):
+                    value = None
+
                 if ModelSchema is None:
                     assign(data, renamed_field, value, missing=dict)  # slow
                 else:
