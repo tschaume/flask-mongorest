@@ -328,20 +328,28 @@ class ResourceView(MethodView):
             self.handle_validation_error(e)
 
     def process_objects(self, objs):
-        """
-        Update each object in the list one by one, and return the total count
-        of updated objects.
-        """
-        count = 0
+        """Update each object in the list, and return the total count of updated objects."""
+        tic = time.perf_counter()
+        nobjs, count = len(objs), 0
         try:
             for obj in objs:
                 self.process_object(obj)
                 count += 1
+                dt = time.perf_counter() - tic
+                if dt > 50:
+                    break
         except ValidationError as e:
             e.args[0]['count'] = count
             raise e
         else:
-            return {'count': count}
+            msg = f"Updated {count} objects in {dt:0.1f}s ({count/dt:0.3f}/s)."
+            print(msg)
+            ret = {'count': count}
+            remain = nobjs - count
+            if remain:
+                msg += f" Remaining {remain} objects skipped to avoid Server Timeout."
+                ret['warning'] = msg
+            return ret
 
     def put(self, **kwargs):
         pk = kwargs.pop('pk', None)
