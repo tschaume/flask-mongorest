@@ -1088,24 +1088,41 @@ class Resource(object):
 
         for field, value in update_dict.items():
             update = False
+            field_instance = obj._fields.get(field)
 
-            # If we're comparing reference fields, only compare ids without
-            # hitting the database
-            if hasattr(obj, '_db_data') and isinstance(obj._fields.get(field), ReferenceField):
+            # don't hit DB for comparing ReferenceFields
+            if hasattr(obj, '_db_data') and isinstance(field_instance, ReferenceField):
                 db_val = obj._db_data.get(field)
                 id_from_obj = db_val and getattr(db_val, 'id', db_val)
                 id_from_data = value and getattr(value, 'pk', value)
                 if id_from_obj != id_from_data:
                     update = True
-            elif getattr(obj, '_fields', None) is not None:
-                if isinstance(obj._fields.get(field), DictField):
+            elif hasattr(obj, '_fields'):
+                if isinstance(field_instance, DictField):
                     if value is None:
                         update = True
                     else:
                         if obj[field] is None:
                             obj[field] = {}
                         self.update_object(obj[field], data=value, save=False)
-                elif obj._fields[field].primary_key:
+                elif field in self._related_resources and isinstance(field_instance, ListField):
+                    if value is None:
+                        update = True
+                    else:
+                        if obj[field] is None:
+                            obj[field] = []
+
+                        res = self._related_resources[field](view_method=self.view_method)
+                        for i, v in enumerate(value):
+                            if v is None:
+                                continue  # no update requested for list item
+                            if i == len(obj[field]):
+                                obj[field].append(v)
+                            else:
+                                res.delete_object(obj[field][i])
+                                obj[field][i] = v
+                            res.save_object(v)
+                elif field_instance.primary_key:
                     raise ValidationError({'error': f'`{field}` is primary key and cannot be updated'})
                 elif not equal(getattr(obj, field), value):
                     update = True
