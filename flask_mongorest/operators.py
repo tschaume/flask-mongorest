@@ -49,6 +49,11 @@ And this way, the request we mentioned above would result in:
     Student.objects.filter(score__lte=upper, score__gte=lower)
 """
 
+from fastnumbers import fast_float
+from dateutil.parser import isoparse
+from flask_mongorest.exceptions import ValidationError
+
+
 class Operator(object):
     """Base class that all the other operators should inherit from."""
 
@@ -76,12 +81,6 @@ class Operator(object):
         kwargs = self.prepare_queryset_kwargs(field, value, negate)
         return queryset.filter(**kwargs)
 
-def try_float(value):
-    try:
-        return float(value)
-    except ValueError:
-        return value
-
 class Ne(Operator):
     op = 'ne'
 
@@ -90,28 +89,28 @@ class Lt(Operator):
     typ = 'number'
 
     def prepare_queryset_kwargs(self, field, value, negate):
-        return {'__'.join(filter(None, [field, self.op])): try_float(value)}
+        return {'__'.join(filter(None, [field, self.op])): fast_float(value)}
 
 class Lte(Operator):
     op = 'lte'
     typ = 'number'
 
     def prepare_queryset_kwargs(self, field, value, negate):
-        return {'__'.join(filter(None, [field, self.op])): try_float(value)}
+        return {'__'.join(filter(None, [field, self.op])): fast_float(value)}
 
 class Gt(Operator):
     op = 'gt'
     typ = 'number'
 
     def prepare_queryset_kwargs(self, field, value, negate):
-        return {'__'.join(filter(None, [field, self.op])): try_float(value)}
+        return {'__'.join(filter(None, [field, self.op])): fast_float(value)}
 
 class Gte(Operator):
     op = 'gte'
     typ = 'number'
 
     def prepare_queryset_kwargs(self, field, value, negate):
-        return {'__'.join(filter(None, [field, self.op])): try_float(value)}
+        return {'__'.join(filter(None, [field, self.op])): fast_float(value)}
 
 class Exact(Operator):
     op = 'exact'
@@ -177,3 +176,21 @@ class Boolean(Operator):
 
         return {field: bool_value}
 
+class Date(Operator):
+    typ = "string"
+    fmt = "date-time"
+
+    def prepare_queryset_kwargs(self, field, value, negate):
+        try:
+            value = isoparse(value)
+        except ValueError as e:
+            raise ValidationError("Invalid date format - use ISO 8601")
+
+        field = '__'.join(filter(None, [field, self.op]))
+        return {field: value}
+
+class Before(Date):
+    op = "lt"
+
+class After(Date):
+    op = "gt"
