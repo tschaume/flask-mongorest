@@ -23,7 +23,7 @@ except ImportError:
 from mongoengine.fields import EmbeddedDocumentField, ListField
 from mongoengine.fields import GenericReferenceField, ReferenceField
 from mongoengine.fields import GenericLazyReferenceField, LazyReferenceField
-from mongoengine.fields import DictField
+from mongoengine.fields import DictField, EmbeddedDocumentListField
 
 try:
     from cleancat import Schema as CleancatSchema
@@ -1088,7 +1088,7 @@ class Resource(object):
 
         for field, value in update_dict.items():
             update = False
-            field_instance = obj._fields.get(field)
+            field_instance = hasattr(obj, "_fields") and obj._fields.get(field)
 
             # don't hit DB for comparing ReferenceFields
             if hasattr(obj, '_db_data') and isinstance(field_instance, ReferenceField):
@@ -1105,7 +1105,8 @@ class Resource(object):
                         if obj[field] is None:
                             obj[field] = {}
                         self.update_object(obj[field], data=value, save=False)
-                elif field in self._related_resources and isinstance(field_instance, ListField):
+                elif field in self._related_resources and isinstance(field_instance, ListField) \
+                    and not isinstance(field_instance, EmbeddedDocumentListField):
                     if value is None:
                         update = True
                     else:
