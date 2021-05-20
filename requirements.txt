@@ -1,4 +1,4 @@
-mongoengine==0.22.1
+mongoengine==0.23.1
 flask-mongoengine==1.0.0
 mimerender @ git+https://github.com/tschaume/mimerender@mpcontribs#egg=mimerender-0.6.1
 python-dateutil==2.8.1
