@@ -7,6 +7,7 @@ from unflatten import unflatten
 from typing import Pattern
 from bson.dbref import DBRef
 from bson.objectid import ObjectId
+from collections import defaultdict
 from flask import has_request_context, request, url_for
 try:
     from urllib.parse import urlparse
@@ -99,14 +100,6 @@ class Resource(object):
     # Map of field names and Resource classes that should be used to handle
     # these fields (for serialization, saving, etc.).
     related_resources = {}
-
-    # Map of field names on this resource's document to field names on the
-    # related resource's document, used as a helper in the process of
-    # turning a field value from a queryset to a list of objects
-    #
-    # TODO Behavior of this is *very* unintuitive and should be changed or
-    # dropped, or at least refactored
-    related_resources_hints = {}
 
     # List of field names corresponding to related resources. If a field is
     # mentioned here and in `related_resources`, it can be created/updated
@@ -733,84 +726,46 @@ class Resource(object):
         Given a list of objects and an optional list of the only fields we
         should care about, fetch these objects' related resources.
         """
-        if not self.related_resources_hints:
-            return
+        queries = defaultdict(list)
+        lookup = defaultdict(dict)
 
-        # Create a map of field names to MongoEngine Q objects that will
-        # later be used to fetch the related resources from MongoDB
-        # Queries for the same document/collection are combined to improve
-        # efficiency.
-        document_queryset = {}
         for obj in objs:
-            for field_name in self.related_resources_hints.keys():
-                if only_fields is not None and field_name not in only_fields:
+            for field_name in self.related_resources.keys():
+                if only_fields and field_name not in only_fields:
                     continue
-                method = getattr(obj, field_name)
-                if callable(method):
-                    q = method()
-                    if field_name in document_queryset:
-                        document_queryset[field_name] = (document_queryset[field_name] | q._query_obj)
-                    else:
-                        document_queryset[field_name] = q._query_obj
 
-        # For each field name, execute the queries we generated in the block
-        # above, and map the results to each object that references them.
-        # TODO This is in dire need of refactoring, or a complete overhaul
-        hints = {}
-        for field_name, q_obj in document_queryset.items():
-            doc = self.get_related_resources()[field_name].document
+                field_value = get_value(obj, field_name)
 
-            # Create a QuerySet based on the query object
-            query = doc.objects.filter(q_obj)
-
-            # Don't let MongoDB do the sorting as it won't use the index.
-            # Store the ordering so we can do client sorting afterwards.
-            ordering = query._ordering or query._get_order_by(query._document._meta['ordering'])
-            query = query.order_by()
-
-            # Fetch the results
-            results = list(query)
-
-            # Reapply the ordering and add results to the mapping
-            if ordering:
-                document_queryset[field_name] = sorted(results, cmp_fields(ordering))
-            else:
-                document_queryset[field_name] = results
-
-            # For each field name, create a map of obj PKs to a list of
-            # results they referenced.
-            hint_index = {}
-            if field_name in self.related_resources_hints.keys():
-                hint_field = self.related_resources_hints[field_name]
-                for obj in document_queryset[field_name]:
-                    hint_field_instance = obj._fields[hint_field]
-                    # Don't trigger a query for SafeReferenceFields
-                    if SafeReferenceField and isinstance(hint_field_instance, SafeReferenceField):
-                        hinted = obj._db_data[hint_field]
-                        if hint_field_instance.dbref:
-                            hinted = hinted.id
-                    else:
-                        hinted = str(getattr(obj, hint_field).id)
-                    if hinted not in hint_index:
-                        hint_index[hinted] = [obj]
-                    else:
-                        hint_index[hinted].append(obj)
-
-                hints[field_name] = hint_index
-
-        # Assign the results to each object
-        # TODO This is in dire need of refactoring, or a complete overhaul
-        for obj in objs:
-            for field_name, hint_index in hints.items():
-                obj_id = obj.id
-                if isinstance(obj_id, DBRef):
-                    obj_id = obj_id.id
-                elif isinstance(obj_id, ObjectId):
-                    obj_id = str(obj_id)
-                if obj_id not in hint_index:
-                    setattr(obj, field_name, [])
+                if isinstance(field_value, DBRef):
+                    ref_id = field_value.id
+                    queries[field_name].append(ref_id)
+                    lookup[field_name][ref_id] = obj.id
+                elif isinstance(field_value, list):
+                    for val in field_value:
+                        if isinstance(val, DBRef):
+                            queries[field_name].append(val.id)
+                            lookup[field_name][val.id] = obj.id
                 else:
-                    setattr(obj, field_name, hint_index[obj_id])
+                    raise ValidationError(
+                        f"Fetching related resources for {field_name} not supported!"
+                    )
+
+        related_fields = list(queries.keys())
+        related_objects = {f: defaultdict(list) for f in related_fields}
+
+        for field_name in related_fields:
+            doc = self.related_resources[field_name].document
+            for d in doc.objects.filter(id__in=queries[field_name]):
+                obj_id = lookup[field_name][d.id]
+                related_objects[field_name][obj_id].append(d)
+
+        for obj in objs:
+            for field_name in related_fields:
+                old_value = get_value(obj, field_name)
+                rel_objs = related_objects[field_name][obj.id]
+                new_value = rel_objs[0] if isinstance(old_value, DBRef) else rel_objs
+                set_value(obj, field_name, new_value)
+
 
     def apply_filters(self, qs, params=None):
         """
