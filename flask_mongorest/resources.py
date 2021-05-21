@@ -661,9 +661,19 @@ class Resource(object):
             document_fields = set(self.fields + self.get_optional_fields())
             requested_fields = self.get_requested_fields(params=self.params)
             requested_root_fields = set(f.split('.', 1)[0] for f in requested_fields)
-            mask = requested_root_fields & document_fields
-            if self.view_method == methods.Download:
-                mask.add("last_modified")
+            root_mask = requested_root_fields & document_fields
+            mask = []
+
+            for requested_field in requested_fields:
+                root_field = requested_field.split('.', 1)[0]
+                if root_field in root_mask:
+                    if "." in requested_field:
+                        field_instance = self.document._fields.get(root_field)
+                        if isinstance(field_instance, (ReferenceField, ListField)):
+                            raise ValidationError(f"Dot access not supported for {root_field}!")
+
+                    mask.append(requested_field)
+
             return self.document.objects.only(*mask)
 
     def get_object(self, pk, qfilter=None):
