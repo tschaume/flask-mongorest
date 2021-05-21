@@ -270,9 +270,7 @@ class ResourceView(MethodView):
         elif isinstance(raw_data, list):
             limit = self._resource.bulk_update_limit
             if len(raw_data) > limit:
-                raise ValidationError({
-                    'errors': [f"Can only create {limit} documents at once"]
-                })
+                raise ValidationError(f"Can only create {limit} documents at once")
             raw_data_deque = deque(raw_data)
             self._resource.view_method = methods.BulkCreate
             data = []
@@ -294,7 +292,7 @@ class ResourceView(MethodView):
                 ret['warning'] = msg
             return ret, '201 Created'
         else:
-            raise ValidationError({'error': 'wrong payload type'})
+            raise ValidationError('wrong payload type')
 
     def create_object(self):
         self._resource.validate_request()

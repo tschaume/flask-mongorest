@@ -197,9 +197,9 @@ class Resource(object):
         if not hasattr(self, '_raw_data'):
             if request.method in ('PUT', 'POST') or request.data:
                 if request.mimetype and 'json' not in request.mimetype:
-                    raise ValidationError({'error': "Please send valid JSON with a 'Content-Type: application/json' header."})
+                    raise ValidationError("Please send valid JSON with a 'Content-Type: application/json' header.")
                 if request.headers.get('Transfer-Encoding') == 'chunked':
-                    raise ValidationError({'error': "Chunked Transfer-Encoding is not supported."})
+                    raise ValidationError("Chunked Transfer-Encoding is not supported.")
 
                 try:
                     self._raw_data = json.loads(
@@ -209,9 +209,9 @@ class Resource(object):
                     if request.method == 'PUT':
                         self._raw_data = unflatten(self._raw_data)
                 except ValueError:
-                    raise ValidationError({'error': 'The request contains invalid JSON.'})
+                    raise ValidationError('The request contains invalid JSON.')
                 if request.method == 'PUT' and not isinstance(self._raw_data, dict):
-                    raise ValidationError({'error': 'JSON data must be a dict.'})
+                    raise ValidationError('JSON data must be a dict.')
             else:
                 self._raw_data = {}
 
@@ -648,7 +648,7 @@ class Resource(object):
                     partial = bool(request.method == 'PUT' and obj is not None)
                     self.data = self.schema().load(self.data, partial=partial)
                 except MarshmallowValidationError as ex:
-                    raise ValidationError({'errors': ex.messages})
+                    raise ValidationError(ex.messages)
 
     def get_queryset(self):
         """
@@ -703,17 +703,17 @@ class Resource(object):
             page = params.get(f'{field}_page', 1)
             per_page = params.get(f'{field}_per_page', limits[0])
             if not isint(page):
-                raise ValidationError({'error': f'{field}_page must be an integer.'})
+                raise ValidationError(f'{field}_page must be an integer.')
             if not isint(per_page):
-                raise ValidationError({'error': f'{field}_per_page must be an integer.'})
+                raise ValidationError(f'{field}_per_page must be an integer.')
 
             page, per_page = int(page), int(per_page)
             if per_page > limits[1]:
-                raise ValidationError({
-                    'error': f"Per-page limit ({per_page}) for {field} too large ({limits[1]})."
-                })
+                raise ValidationError(
+                    f"Per-page limit ({per_page}) for {field} too large ({limits[1]})."
+                )
             if page < 0:
-                raise ValidationError({'error': f'{field}_page must be a non-negative integer.'})
+                raise ValidationError(f'{field}_page must be a non-negative integer.')
 
             per_page = min(per_page, limits[1])
             start_index = (page - 1) * per_page
@@ -871,10 +871,11 @@ class Resource(object):
             for par in ['_limit', 'per_page']:
                 if par in params:
                     if not isint(params[par]):
-                        raise ValidationError({'error': f'{par} must be an integer (got "%s" instead).' % params[par]})
+                        raise ValidationError(
+                            f'{par} must be an integer (got "{params[par]}" instead).'
+                        )
                     if params[par] and int(params[par]) > max_limit:
-                        raise ValidationError({'error': "The limit you set is larger than the maximum limit for this \
-                                               resource (max_limit = %d)." % max_limit})
+                        raise ValidationError(f"Limit {max_limit} too large.")
                     limit = min(int(params[par]), max_limit)
                     break
             else:
@@ -883,9 +884,9 @@ class Resource(object):
             for par in ['_skip', 'page']:
                 if par in params:
                     if not isint(params[par]):
-                        raise ValidationError({'error': f'{par} must be an integer (got "%s" instead).' % params[par]})
+                        raise ValidationError(f'{par} must be an integer!')
                     if params[par] and int(params[par]) < 0:
-                        raise ValidationError({'error': f'{par} must be a non-negative integer (got "%s" instead).' % params[par]})
+                        raise ValidationError(f'{par} must be a non-negative integer')
                     skip = int(params[par]) if par == '_skip' else (int(params[par])-1) * limit
                     break
             else:
@@ -1079,7 +1080,7 @@ class Resource(object):
                                 obj[field][i] = v
                             res.save_object(v)
                 elif field_instance.primary_key:
-                    raise ValidationError({'error': f'`{field}` is primary key and cannot be updated'})
+                    raise ValidationError(f'`{field}` is primary key and cannot be updated')
                 elif not equal(getattr(obj, field), value):
                     update = True
             elif not equal(obj.get(field), value):
