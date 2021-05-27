@@ -494,7 +494,7 @@ class Resource(object):
         a DBRef or serialize it using a resource found in `related_resources`.
         """
         if field_name in self._related_resources:
-            if field_value and not isinstance(field_value, DBRef):
+            if field_value:
                 res = self._related_resources[field_name](view_method=self.view_method)
                 return res.serialize_field(field_value, **kwargs)
         else:
