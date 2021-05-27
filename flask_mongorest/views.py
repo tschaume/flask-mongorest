@@ -178,27 +178,36 @@ class ResourceView(MethodView):
         else:
             self._resource.view_method = methods.BulkFetch
 
-        # Create a queryset filter to control read access to the
-        # underlying objects
-        qfilter = lambda qs: self.has_read_permission(request, qs.clone())
-
         if pk is None:
-            result = self._resource.get_objects(qfilter=qfilter)
-
-            # Result usually contains objects and a has_more bool. However, in case where
-            # more data is returned, we include it at the top level of the response dict
-            if len(result) == 2:
-                objs, has_more = result
-                extra = {}
-            elif len(result) == 3:
-                objs, has_more, extra = result
-            else:
-                raise ValueError('Unsupported value of resource.get_objects')
-
+            extra = {}
             # generate hash/etag and S3 object name
+
             if self._resource.view_method == methods.Download:
+                # Create a queryset filter to control read access to the underlying objects
+                doc_fields = self._resource.document._fields.keys()
+                only_fields = ["pk"]
+                has_last_modified = "last_modified" in doc_fields
+                if has_last_modified:
+                    only_fields.append("last_modified")
+
+                qfilter = lambda qs: self.has_read_permission(
+                    request, qs.only(*only_fields).clone()
+                )
+                result = self._resource.get_objects(qfilter=qfilter)
+
+                if len(result) == 2:
+                    objs, has_more = result
+                    extra = {}
+                elif len(result) == 3:
+                    objs, has_more, extra = result
+                else:
+                    raise ValueError('Unsupported value of resource.get_objects')
+
                 primary_keys = [str(obj.pk) for obj in objs]
-                last_modified = max(obj.last_modified for obj in objs)
+                if has_last_modified:
+                    last_modifieds = [obj.last_modified for obj in objs if hasattr(obj, "last_modified")]
+                    last_modified = max(last_modifieds) if last_modifieds else None
+
                 dct = {"ids": primary_keys, "params": self._resource.params}
                 sha1 = hashlib.sha1(
                     json.dumps(dct, sort_keys=True).encode('utf-8')
@@ -207,11 +216,31 @@ class ResourceView(MethodView):
                 key = f"{CNAME}/{filename}" if CNAME else filename
                 extra["s3"] = {"key": key, "update": False}
                 try:
-                    s3_client.head_object(
-                        Bucket=BUCKET, Key=key, IfModifiedSince=last_modified
-                    )
+                    s3_client_kwargs = dict(Bucket=BUCKET, Key=key)
+                    if has_last_modified and last_modified:
+                        s3_client_kwargs["IfModifiedSince"] = last_modified
+                    s3_client.head_object(**s3_client_kwargs)
                 except ClientError:
                     extra["s3"]["update"] = True
+
+                if not extra["s3"]["update"]:
+                    return extra, '200 OK', {
+                        'Content-Disposition': f'attachment; filename="{filename}.{short_mime}"'
+                    }
+
+            # Create a queryset filter to control read access to the underlying objects
+            qfilter = lambda qs: self.has_read_permission(request, qs.clone())
+            result = self._resource.get_objects(qfilter=qfilter)
+
+            # Result usually contains objects and a has_more bool. However, in case where
+            # more data is returned, we include it at the top level of the response dict
+            if len(result) == 2:
+                objs, has_more = result
+            elif len(result) == 3:
+                objs, has_more, extra_update = result
+                extra.update(extra_update)
+            else:
+                raise ValueError('Unsupported value of resource.get_objects')
 
             # Serialize the objects one by one
             data = []
@@ -246,6 +275,8 @@ class ResourceView(MethodView):
             if extra:
                 ret.update(extra)
         else:
+            # Create a queryset filter to control read access to the underlying objects
+            qfilter = lambda qs: self.has_read_permission(request, qs.clone())
             obj = self._resource.get_object(pk, qfilter=qfilter)
             ret = self._resource.serialize(obj, params=request.args)
 
