@@ -755,10 +755,6 @@ class Resource(object):
                         if isinstance(val, DBRef):
                             queries[field_name].append(val.id)
                             lookup[field_name][val.id] = obj.id
-                else:
-                    raise ValidationError(
-                        f"Fetching related resources for {field_name} not supported!"
-                    )
 
         related_fields = list(queries.keys())
         related_objects = {f: defaultdict(list) for f in related_fields}
