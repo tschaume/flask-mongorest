@@ -246,26 +246,29 @@ class ResourceView(MethodView):
             data = []
             url = unquote(request.url).encode('utf-8')
             channel = hashlib.sha1(url).hexdigest()
+
             if "s3" not in extra or extra["s3"]["update"]:
                 print(f"serializing {channel}...")
                 tic = time.perf_counter()
                 batch_size, total_count = 1000, extra["total_count"]
+
                 for idx, obj in enumerate(objs):
-                    if idx > 0 and (not idx % batch_size or idx == total_count - 1):
-                        toc = time.perf_counter()
-                        nobjs = batch_size
-                        if idx == total_count - 1:
-                            nobjs = total_count - batch_size * int(idx/batch_size) - 1
-                        print(f"{idx} Took {toc - tic:0.4f}s to serialize {nobjs} objects.")
-                        if self._resource.view_method == methods.Download:
-                            sse.publish({"message": idx + 1}, type="download", channel=channel)
-                        tic = time.perf_counter()
                     try:
                         data.append(self._resource.serialize(obj, params=request.args))
                     except Exception as e:
                         fixed_obj = self._resource.handle_serialization_error(e, obj)
                         if fixed_obj is not None:
                             data.append(fixed_obj)
+
+                    if idx > 0 and (not idx % batch_size or idx == total_count - 1):
+                        toc = time.perf_counter()
+                        nobjs = batch_size
+                        if idx == total_count - 1:
+                            nobjs = total_count - batch_size * int(idx/batch_size)
+                        print(f"#{idx} Took {toc - tic:0.4f}s to serialize {nobjs} objects.")
+                        if self._resource.view_method == methods.Download:
+                            sse.publish({"message": idx + 1}, type="download", channel=channel)
+                        tic = time.perf_counter()
 
             ret = {'data': data}
 

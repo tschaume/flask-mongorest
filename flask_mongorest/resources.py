@@ -533,7 +533,6 @@ class Resource(object):
         # one by one.
         data = {}
         for field in requested_fields:
-
             # resolve the user-facing name of the field
             renamed_field = self._rename_fields.get(field, field)
 
@@ -881,7 +880,7 @@ class Resource(object):
                             f'{par} must be an integer (got "{params[par]}" instead).'
                         )
                     if params[par] and int(params[par]) > max_limit:
-                        raise ValidationError(f"Limit {max_limit} too large.")
+                        raise ValidationError(f"Limit {params[par]} too large.")
                     limit = min(int(params[par]), max_limit)
                     break
             else:
@@ -938,18 +937,19 @@ class Resource(object):
         # set total count
         extra['total_count'] = qs.count()
 
-        # Apply pagination to the queryset (if not Download and no custom queryset provided)
+        # Apply pagination to the queryset (if no custom queryset provided)
         bulk_methods = {methods.BulkUpdate, methods.BulkDelete}
         limit = None
         if self.view_method in bulk_methods:
             # limit the number of objects that can be bulk-updated at a time
             qs = qs.limit(self.bulk_update_limit)
             limit = self.bulk_update_limit
-        elif not custom_qs and self.view_method != methods.Download:
+        elif not custom_qs:
             # no need to skip/limit if a custom `qs` was provided
             skip, limit = self.get_skip_and_limit(params)
             qs = qs.skip(skip).limit(limit+1)  # get one extra to determine has_more
-            qs = self.apply_field_pagination(qs, params)
+            if self.view_method != methods.Download:
+                qs = self.apply_field_pagination(qs, params)
             extra['total_pages'] = int(extra['total_count']/limit) + bool(extra['total_count'] % limit)
 
         # Needs to be at the end as it returns a list, not a queryset
@@ -964,7 +964,7 @@ class Resource(object):
 
         # Determine the value of has_more
         has_more = False
-        if self.view_method != methods.Download and self.paginate:
+        if self.paginate:
             has_more = len(objs) > limit
 
         if has_more:
