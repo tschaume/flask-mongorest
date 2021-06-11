@@ -735,8 +735,9 @@ class Resource(object):
         Given a list of objects and an optional list of the only fields we
         should care about, fetch these objects' related resources.
         """
-        queries = defaultdict(list)
-        lookup = defaultdict(dict)
+        # NOTE multiple objects can contain DBRefs to the same related document
+        queries = defaultdict(set)
+        lookup = defaultdict(lambda: defaultdict(list))
 
         for obj in objs:
             for field_name in self.related_resources.keys():
@@ -747,22 +748,23 @@ class Resource(object):
 
                 if isinstance(field_value, DBRef):
                     ref_id = field_value.id
-                    queries[field_name].append(ref_id)
-                    lookup[field_name][ref_id] = obj.id
+                    queries[field_name].add(ref_id)
+                    lookup[field_name][ref_id].append(obj.id)
                 elif isinstance(field_value, list):
                     for val in field_value:
                         if isinstance(val, DBRef):
-                            queries[field_name].append(val.id)
-                            lookup[field_name][val.id] = obj.id
+                            queries[field_name].add(val.id)
+                            lookup[field_name][val.id].append(obj.id)
 
         related_fields = list(queries.keys())
         related_objects = {f: defaultdict(list) for f in related_fields}
 
         for field_name in related_fields:
             doc = self.related_resources[field_name].document
-            for d in doc.objects.filter(id__in=queries[field_name]):
-                obj_id = lookup[field_name][d.id]
-                related_objects[field_name][obj_id].append(d)
+            for d in doc.objects.filter(id__in=list(queries[field_name])):
+                obj_ids = lookup[field_name][d.id]
+                for obj_id in obj_ids:
+                    related_objects[field_name][obj_id].append(d)
 
         for obj in objs:
             for field_name in related_fields:
