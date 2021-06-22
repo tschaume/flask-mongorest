@@ -11,7 +11,7 @@ import mongoengine
 
 from collections import deque
 from gzip import GzipFile
-from io import BytesIO
+from io import BytesIO, StringIO
 from fdict import fdict
 from collections import deque
 from flask import render_template, request
@@ -44,16 +44,58 @@ def render_gz(**payload):
 
     if s3 and s3["update"]:
         fmt = request.args.get('format')
-        content_type = 'text/csv' if fmt == 'csv' else 'application/json'
-        if fmt == 'json':
+        if fmt not in {"json", "csv"}:
+            raise ValueError(f"Format {fmt} not supported!")
+
+        for obj in payload['data']:
+            for k in list(obj.keys()):
+                if isinstance(obj[k], list):
+                    if all("id" in d for d in obj[k]):
+                        if fmt == "json":
+                            obj[k] = [{"id": d["id"]} for d in obj[k]]
+                        else:
+                            obj[k] = {str(i): d["id"] for i, d in enumerate(obj[k])}
+                    elif fmt == "csv":
+                        del obj[k]
+                elif isinstance(obj[k], dict) and "id" in obj[k]:
+                    obj[k] = {"id": obj[k]["id"]}
+
+        if fmt == "json":
+            content_type = "application/json"
             contents = json.dumps(payload['data'], allow_nan=True, cls=MongoEncoder)
-        elif fmt == 'csv':
-            from pandas import DataFrame
-            from cherrypicker import CherryPicker
-            records = [CherryPicker(d).flatten().get() for d in payload['data']]
-            contents = DataFrame.from_records(records).to_csv()
+        else:
+            from pandas import json_normalize, DataFrame
+
+            content_type = "text/csv"
+            df_keys = {"data", "columns", "index"}
+            contents = None
+
+            for obj in payload["data"]:
+                if df_keys.issubset(obj.keys()):
+                    try:
+                        df = DataFrame.from_records(
+                            obj["data"], columns=obj["columns"], index=obj["index"]
+                        )
+                    except:
+                        continue
+
+                    if contents is None:
+                        contents = StringIO()
+                    else:
+                        contents.write("\n\n")
+
+                    meta = json_normalize({k: v for k, v in obj.items() if k not in df_keys})
+                    meta.to_csv(contents)
+                    contents.write("\n")
+                    df.to_csv(contents)
+
+            if contents is None:
+                contents = json_normalize(payload["data"]).to_csv()
 
         gzip_buffer = BytesIO()
+        if isinstance(contents, StringIO):
+            contents = contents.getvalue()
+
         with GzipFile(mode='wb', fileobj=gzip_buffer) as gzip_file:
             gzip_file.write(contents.encode('utf-8'))  # need to give full contents to compression
 
@@ -68,8 +110,8 @@ def render_gz(**payload):
         return body
 
     retr = s3_client.get_object(Bucket=BUCKET, Key=s3["key"])
-    gzip_buffer = BytesIO(retr['Body'].read())
-    return gzip_buffer.getvalue()
+    buffer = BytesIO(retr['Body'].read())
+    return buffer.getvalue()
 
 
 try:
