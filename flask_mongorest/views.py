@@ -47,6 +47,8 @@ def render_gz(**payload):
         if fmt not in {"json", "csv"}:
             raise ValueError(f"Format {fmt} not supported!")
 
+        df_keys = {"data", "columns", "index"}
+
         for obj in payload['data']:
             for k in list(obj.keys()):
                 if isinstance(obj[k], list):
@@ -55,7 +57,7 @@ def render_gz(**payload):
                             obj[k] = [{"id": d["id"]} for d in obj[k]]
                         else:
                             obj[k] = {str(i): d["id"] for i, d in enumerate(obj[k])}
-                    elif fmt == "csv":
+                    elif fmt == "csv" and k not in df_keys:
                         del obj[k]
                 elif isinstance(obj[k], dict) and "id" in obj[k]:
                     obj[k] = {"id": obj[k]["id"]}
@@ -67,7 +69,6 @@ def render_gz(**payload):
             from pandas import json_normalize, DataFrame
 
             content_type = "text/csv"
-            df_keys = {"data", "columns", "index"}
             contents = None
 
             for obj in payload["data"]:
@@ -76,7 +77,8 @@ def render_gz(**payload):
                         df = DataFrame.from_records(
                             obj["data"], columns=obj["columns"], index=obj["index"]
                         )
-                    except:
+                    except Exception as ex:
+                        print(str(ex))
                         continue
 
                     if contents is None:
