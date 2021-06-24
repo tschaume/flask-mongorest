@@ -654,10 +654,12 @@ class Resource(object):
         Return a MongoEngine queryset that will later be used to return
         matching documents.
         """
+        document_fields = set(self.fields + self.get_optional_fields())
+
         if request.method == 'PUT':
-            return self.document.objects  # get full documents for updates
+            # make sure to get full documents for updates
+            return self.document.objects.only(*document_fields)
         else:
-            document_fields = set(self.fields + self.get_optional_fields())
             requested_fields = self.get_requested_fields(params=self.params)
             requested_root_fields = set(f.split('.', 1)[0] for f in requested_fields)
             root_mask = requested_root_fields & document_fields
@@ -1016,7 +1018,6 @@ class Resource(object):
         self.save_related_objects(obj, **kwargs)
         obj.save(**kwargs)
         obj.reload()
-
         self._dirty_fields = None # No longer dirty.
 
     def get_object_dict(self, data=None, update=False):
