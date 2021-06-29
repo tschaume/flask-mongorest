@@ -1016,8 +1016,7 @@ class Resource(object):
 
     def save_object(self, obj, **kwargs):
         self.save_related_objects(obj, **kwargs)
-        obj.save(**kwargs)
-        obj.reload()
+        obj.save(**kwargs).reload()
         self._dirty_fields = None # No longer dirty.
 
     def get_object_dict(self, data=None, update=False):
