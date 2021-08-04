@@ -355,7 +355,9 @@ class ResourceView(MethodView):
             tic = time.perf_counter()
             while len(raw_data_deque):
                 self._resource._raw_data = raw_data_deque.popleft()
-                data.append(self.create_object())
+                data.append(self.create_object(
+                    skip_post_save=bool(raw_data_deque)
+                ))
                 dt = time.perf_counter() - tic
                 if dt > 50:
                     break
@@ -372,7 +374,7 @@ class ResourceView(MethodView):
         else:
             raise ValidationError('wrong payload type')
 
-    def create_object(self):
+    def create_object(self, skip_post_save=False):
         self._resource.validate_request()
         try:
             obj = self._resource.create_object(save=False)
@@ -383,7 +385,7 @@ class ResourceView(MethodView):
         if not self.has_add_permission(request, obj):
             raise Unauthorized
 
-        self._resource.save_object(obj, force_insert=True)
+        self._resource.save_object(obj, force_insert=True, skip_post_save=skip_post_save)
         ret = self._resource.serialize(obj, params=request.args)
         if self._resource.uri_prefix:
             return ret, "201 Created", {"Location": self._resource._url(str(obj.id))}

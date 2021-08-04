@@ -1015,8 +1015,9 @@ class Resource(object):
                             instance.save()
 
     def save_object(self, obj, **kwargs):
+        signal_kwargs = {"skip": kwargs.get("skip_post_save", False)}
         self.save_related_objects(obj, **kwargs)
-        obj.save(**kwargs).reload()
+        obj.save(signal_kwargs=signal_kwargs, **kwargs).reload()
         self._dirty_fields = None # No longer dirty.
 
     def get_object_dict(self, data=None, update=False):
