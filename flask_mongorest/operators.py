@@ -54,9 +54,19 @@ from dateutil.parser import isoparse
 from flask_mongorest.exceptions import ValidationError
 
 
+def get_bool_value(value, negate):
+    if value in {'false', 'False'}:
+        bool_value = False
+    elif value in {'true', 'True'}:
+        bool_value = True
+    else:
+        bool_value = bool(value)
+
+    return not bool_value if negate else bool_value
+
+
 class Operator(object):
     """Base class that all the other operators should inherit from."""
-
     op = 'exact'
     typ = 'string'
 
@@ -72,10 +82,9 @@ class Operator(object):
         return self
 
     def prepare_queryset_kwargs(self, field, value, negate):
-        if negate:
-            return {'__'.join(filter(None, [field, 'not', self.op])): value}
-        else:
-            return {'__'.join(filter(None, [field, self.op])): value}
+        v = fast_float(value) if typ == "number" else value
+        parts = [field, 'not' if negate else None, self.op]
+        return {'__'.join(filter(None, parts)): v}
 
     def apply(self, queryset, field, value, negate=False):
         kwargs = self.prepare_queryset_kwargs(field, value, negate)
@@ -88,36 +97,22 @@ class Lt(Operator):
     op = 'lt'
     typ = 'number'
 
-    def prepare_queryset_kwargs(self, field, value, negate):
-        return {'__'.join(filter(None, [field, self.op])): fast_float(value)}
-
 class Lte(Operator):
     op = 'lte'
     typ = 'number'
-
-    def prepare_queryset_kwargs(self, field, value, negate):
-        return {'__'.join(filter(None, [field, self.op])): fast_float(value)}
 
 class Gt(Operator):
     op = 'gt'
     typ = 'number'
 
-    def prepare_queryset_kwargs(self, field, value, negate):
-        return {'__'.join(filter(None, [field, self.op])): fast_float(value)}
-
 class Gte(Operator):
     op = 'gte'
     typ = 'number'
 
-    def prepare_queryset_kwargs(self, field, value, negate):
-        return {'__'.join(filter(None, [field, self.op])): fast_float(value)}
-
 class Exact(Operator):
-    op = 'exact'
-
     def prepare_queryset_kwargs(self, field, value, negate):
         # Using <field>__exact causes mongoengine to generate a regular
-        # expresison query, which we'd like to avoid.
+        # expression query, which we'd like to avoid.
         if negate:
             return {'%s__ne' % field: value}
         else:
@@ -127,6 +122,7 @@ class IExact(Operator):
     op = 'iexact'
 
 class In(Operator):
+    allow_negation = True
     op = 'in'
     typ = 'array'
 
@@ -144,39 +140,38 @@ class In(Operator):
         return {'__'.join(filter(None, [field, op])): value}
 
 class Contains(Operator):
+    allow_negation = True
     op = 'contains'
 
 class IContains(Operator):
+    allow_negation = True
     op = 'icontains'
 
 class Startswith(Operator):
+    allow_negation = True
     op = 'startswith'
 
 class IStartswith(Operator):
+    allow_negation = True
     op = 'istartswith'
 
 class Endswith(Operator):
+    allow_negation = True
     op = 'endswith'
 
 class IEndswith(Operator):
+    allow_negation = True
     op = 'iendswith'
 
 class Boolean(Operator):
-    op = 'exact'
     typ = 'boolean'
+    suf = "is"
 
     def prepare_queryset_kwargs(self, field, value, negate):
-        if value == 'false':
-            bool_value = False
-        else:
-            bool_value = True
-
-        if negate:
-            bool_value = not bool_value
-
-        return {field: bool_value}
+        return {field: get_bool_value(value, negate)}
 
 class Date(Operator):
+    suf = "on"
     typ = "string"
     fmt = "date-time"
 
@@ -186,11 +181,42 @@ class Date(Operator):
         except ValueError as e:
             raise ValidationError("Invalid date format - use ISO 8601")
 
-        field = '__'.join(filter(None, [field, self.op]))
+        field = '__'.join([field, self.op])
         return {field: value}
 
 class Before(Date):
+    suf = "before"
     op = "lt"
 
 class After(Date):
+    suf = "after"
     op = "gt"
+
+class Range(Operator):
+    op = 'range'
+
+    def prepare_queryset_kwargs(self, field, value, negate=False):
+        # NOTE negate not implemented
+        lower, upper = value.split(',')
+        return {field + '__gte': lower, field + '__lte': upper}
+
+class Size(Operator):
+    allow_negation = True
+    op = "size"
+    typ = "number"
+
+class Exists(Operator):
+    op = "exists"
+    typ = "boolean"
+
+    def prepare_queryset_kwargs(self, field, value, negate):
+        return {f"{field}__{self.op}": get_bool_value(value, negate)}
+
+
+# NOTE not including Size below (special for arrays)
+LONG_STRINGS = [Contains, IContains, Startswith, IStartswith, Endswith, IEndswith]
+STRINGS = [In, Exact, IExact, Ne] + LONG_STRINGS
+NUMBERS = [Lt, Lte, Gt, Gte, Range]
+DATES = [Date, Before, After]
+OTHERS = [Boolean, Exists]
+ALL = STRINGS + NUMBERS + DATES + OTHERS
