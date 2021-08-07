@@ -1,30 +1,37 @@
+# -*- coding: utf-8 -*-
 import json
-import mongoengine
-
-from math import isnan
-from fastnumbers import fast_int
-from unflatten import unflatten
-from typing import Pattern
-from bson.dbref import DBRef
-from bson.objectid import ObjectId
 from collections import defaultdict
+from math import isnan
+from typing import Pattern
+
+import mongoengine
+from bson.dbref import DBRef
+from fastnumbers import fast_int
 from flask import has_request_context, request, url_for
+from unflatten import unflatten
+
 try:
     from urllib.parse import urlparse
-except ImportError: # Python 2
+except ImportError:  # Python 2
     from urlparse import urlparse
 
-try: # closeio/mongoengine
+try:  # closeio/mongoengine
     from mongoengine.base.proxy import DocumentProxy
     from mongoengine.fields import SafeReferenceField
 except ImportError:
     DocumentProxy = None
     SafeReferenceField = None
 
-from mongoengine.fields import EmbeddedDocumentField, ListField
-from mongoengine.fields import GenericReferenceField, ReferenceField
-from mongoengine.fields import GenericLazyReferenceField, LazyReferenceField
-from mongoengine.fields import DictField, EmbeddedDocumentListField
+from mongoengine.fields import (
+    DictField,
+    EmbeddedDocumentField,
+    EmbeddedDocumentListField,
+    GenericLazyReferenceField,
+    GenericReferenceField,
+    LazyReferenceField,
+    ListField,
+    ReferenceField,
+)
 
 try:
     from cleancat import Schema as CleancatSchema
@@ -33,17 +40,17 @@ except ImportError:
     CleancatSchema = None
 
 try:
-    from marshmallow_mongoengine import ModelSchema
     from marshmallow.exceptions import ValidationError as MarshmallowValidationError
-    from marshmallow.utils import get_value, set_value, _Missing
+    from marshmallow.utils import _Missing, get_value, set_value
+    from marshmallow_mongoengine import ModelSchema
 except ImportError:
     ModelSchema = None
     from glom import glom, assign
     from glom.core import PathAccessError
 
 from flask_mongorest import methods
-from flask_mongorest.exceptions import ValidationError, UnknownFieldError
-from flask_mongorest.utils import cmp_fields, isbound, isint, equal
+from flask_mongorest.exceptions import UnknownFieldError, ValidationError
+from flask_mongorest.utils import equal, isbound, isint
 
 
 def get_with_list_index(o, k):
@@ -55,7 +62,7 @@ def get_with_list_index(o, k):
 
 class ResourceMeta(type):
     def __init__(cls, name, bases, classdict):
-        if classdict.get('__metaclass__') is not ResourceMeta:
+        if classdict.get("__metaclass__") is not ResourceMeta:
             for document, resource in cls.child_document_resources.items():
                 if resource == name:
                     cls.child_document_resources[document] = cls
@@ -139,16 +146,23 @@ class Resource(object):
         self._reverse_rename_fields = {}
         for k, v in self._rename_fields.items():
             self._reverse_rename_fields[v] = k
-        assert len(self._rename_fields) == len(self._reverse_rename_fields), \
-            'Cannot rename multiple fields to the same name'
+        assert len(self._rename_fields) == len(
+            self._reverse_rename_fields
+        ), "Cannot rename multiple fields to the same name"
         self._normal_filters, self._regex_filters = self.get_filters()
         self._child_document_resources = self.get_child_document_resources()
-        self._default_child_resource_document = self.get_default_child_resource_document()
+        self._default_child_resource_document = (
+            self.get_default_child_resource_document()
+        )
         self.data = None
         self._dirty_fields = None
         self.view_method = view_method
-        self._normal_allowed_ordering = [o for o in self.allowed_ordering if not isinstance(o, Pattern)]
-        self._regex_allowed_ordering = [o for o in self.allowed_ordering if isinstance(o, Pattern)]
+        self._normal_allowed_ordering = [
+            o for o in self.allowed_ordering if not isinstance(o, Pattern)
+        ]
+        self._regex_allowed_ordering = [
+            o for o in self.allowed_ordering if isinstance(o, Pattern)
+        ]
 
     @property
     def params(self):
@@ -164,13 +178,13 @@ class Resource(object):
             # `params` doesn't make sense if we don't have a request
             raise AttributeError
 
-        if not hasattr(self, '_params'):
-            if '_params' in self.raw_data:
-                self._params = self.raw_data['_params']
+        if not hasattr(self, "_params"):
+            if "_params" in self.raw_data:
+                self._params = self.raw_data["_params"]
             else:
                 try:
                     self._params = request.args.to_dict()
-                except AttributeError: # mocked request with regular dict
+                except AttributeError:  # mocked request with regular dict
                     self._params = request.args
         return self._params
 
@@ -194,24 +208,26 @@ class Resource(object):
             # `raw_data` doesn't make sense if we don't have a request
             raise AttributeError
 
-        if not hasattr(self, '_raw_data'):
-            if request.method in ('PUT', 'POST') or request.data:
-                if request.mimetype and 'json' not in request.mimetype:
-                    raise ValidationError("Please send valid JSON with a 'Content-Type: application/json' header.")
-                if request.headers.get('Transfer-Encoding') == 'chunked':
+        if not hasattr(self, "_raw_data"):
+            if request.method in ("PUT", "POST") or request.data:
+                if request.mimetype and "json" not in request.mimetype:
+                    raise ValidationError(
+                        "Please send valid JSON with a 'Content-Type: application/json' header."
+                    )
+                if request.headers.get("Transfer-Encoding") == "chunked":
                     raise ValidationError("Chunked Transfer-Encoding is not supported.")
 
                 try:
                     self._raw_data = json.loads(
-                        request.data.decode('utf-8'),
-                        parse_constant=self._enforce_strict_json
+                        request.data.decode("utf-8"),
+                        parse_constant=self._enforce_strict_json,
                     )
-                    if request.method == 'PUT':
+                    if request.method == "PUT":
                         self._raw_data = unflatten(self._raw_data)
                 except ValueError:
-                    raise ValidationError('The request contains invalid JSON.')
-                if request.method == 'PUT' and not isinstance(self._raw_data, dict):
-                    raise ValidationError('JSON data must be a dict.')
+                    raise ValidationError("The request contains invalid JSON.")
+                if request.method == "PUT" and not isinstance(self._raw_data, dict):
+                    raise ValidationError("JSON data must be a dict.")
             else:
                 self._raw_data = {}
 
@@ -221,20 +237,24 @@ class Resource(object):
     def uri(self, path):
         """Generate a URI reference for the given path"""
         if self.uri_prefix:
-            ret = self.uri_prefix+path
+            ret = self.uri_prefix + path
             return ret
         else:
-            raise ValueError("Cannot generate URI for resources that do not specify a uri_prefix")
+            raise ValueError(
+                "Cannot generate URI for resources that do not specify a uri_prefix"
+            )
 
     @classmethod
     def _url(self, path):
         """Generate a complete URL for the given path. Requires application context."""
         if self.uri_prefix:
-            url = url_for(self.uri_prefix.lstrip("/").rstrip("/"),_external=True)
-            ret = url+path
+            url = url_for(self.uri_prefix.lstrip("/").rstrip("/"), _external=True)
+            ret = url + path
             return ret
         else:
-            raise ValueError("Cannot generate URL for resources that do not specify a uri_prefix")
+            raise ValueError(
+                "Cannot generate URL for resources that do not specify a uri_prefix"
+            )
 
     def get_fields(self):
         """
@@ -259,23 +279,23 @@ class Resource(object):
         If `_fields` param is set to '_all', return a list of all the fields
         from get_fields and get_optional_fields combined.
         """
-        params = kwargs.get('params', None)
+        params = kwargs.get("params", None)
 
         include_all = False
 
         # NOTE use list(dict.fromkeys()) below instead of set() to maintain order
-        if 'fields' in kwargs:
-            fields = kwargs['fields']
+        if "fields" in kwargs:
+            fields = kwargs["fields"]
             all_fields_set = list(dict.fromkeys(fields))
         else:
             fields = list(self.get_fields())
             all_fields = fields + self.get_optional_fields()
             all_fields_set = list(dict.fromkeys(all_fields))
 
-        if params and '_fields' in params:
-            params_fields = params['_fields'].split(',')
+        if params and "_fields" in params:
+            params_fields = params["_fields"].split(",")
             only_fields = list(dict.fromkeys(params_fields))
-            if '_all' in only_fields:
+            if "_all" in only_fields:
                 include_all = True
         else:
             only_fields = None
@@ -291,7 +311,9 @@ class Resource(object):
         else:
             for field in only_fields:
                 actual_field = self._reverse_rename_fields.get(field, field)
-                if actual_field in all_fields_set or any(actual_field.startswith(f) for f in all_fields_set):
+                if actual_field in all_fields_set or any(
+                    actual_field.startswith(f) for f in all_fields_set
+                ):
                     requested_fields.append(actual_field)
 
         return requested_fields
@@ -315,14 +337,14 @@ class Resource(object):
         # By default, don't inherit child_document_resources. This lets us have
         # multiple resources for a child document without having to reset the
         # child_document_resources property in the subclass.
-        if 'child_document_resources' in self.__class__.__dict__:
+        if "child_document_resources" in self.__class__.__dict__:
             return self.child_document_resources
         else:
             return {}
 
     def get_default_child_resource_document(self):
         # See comment on get_child_document_resources.
-        if 'default_child_resource_document' in self.__class__.__dict__:
+        if "default_child_resource_document" in self.__class__.__dict__:
             return self.default_child_resource_document
         else:
             return None
@@ -348,12 +370,12 @@ class Resource(object):
         and hence use the Gte operator to filter the data.
         """
         normal_filters, regex_filters = {}, {}
-        for field, operators in getattr(self, 'filters', {}).items():
+        for field, operators in getattr(self, "filters", {}).items():
             field_filters = {}
 
             for op in operators:
-                if op.op == 'exact':
-                    field_filters[''] = op
+                if op.op == "exact":
+                    field_filters[""] = op
 
                 fk = op.suf if hasattr(op, "suf") else op.op
                 field_filters[fk] = op
@@ -377,7 +399,9 @@ class Resource(object):
         """
         s_class = self._child_document_resources.get(obj.__class__)
         if not s_class and self._default_child_resource_document:
-            s_class = self._child_document_resources[self._default_child_resource_document]
+            s_class = self._child_document_resources[
+                self._default_child_resource_document
+            ]
         if s_class and s_class != self.__class__:
             r = s_class(view_method=self.view_method)
             r.data = self.data
@@ -393,9 +417,14 @@ class Resource(object):
         **kwargs are just any options to be passed through to child resources serializers.
         """
         has_field_instance = bool(field_instance)
-        field_instance = (field_instance or
-                          self.document._fields.get(field_name, None) or
-                          getattr(self.document, field_name, None))
+
+        if not has_field_instance:
+            if field_name in self.document._fields:
+                field_instance = self.document._fields[field_name]
+            elif hasattr(self.document, field_name):
+                field_instance = getattr(self.document, field_name)
+            else:
+                field_instance = None
 
         # Determine the field value
         if has_field_instance:
@@ -413,9 +442,13 @@ class Resource(object):
             if isinstance(field_value, _Missing):
                 raise UnknownFieldError
 
-        return self.serialize_field_value(obj, field_name, field_instance, field_value, **kwargs)
+        return self.serialize_field_value(
+            obj, field_name, field_instance, field_value, **kwargs
+        )
 
-    def serialize_field_value(self, obj, field_name, field_instance, field_value, **kwargs):
+    def serialize_field_value(
+        self, obj, field_name, field_instance, field_value, **kwargs
+    ):
         """Select and delegate to an appropriate serializer method based on type of field instance.
 
         field_value is an actual value to be serialized.
@@ -424,21 +457,32 @@ class Resource(object):
         if isinstance(field_instance, (LazyReferenceField, GenericLazyReferenceField)):
             return field_value and field_value.pk
 
-        if isinstance(field_instance, (ReferenceField, GenericReferenceField, EmbeddedDocumentField)):
+        if isinstance(
+            field_instance,
+            (ReferenceField, GenericReferenceField, EmbeddedDocumentField),
+        ):
             return self.serialize_document_field(field_name, field_value, **kwargs)
 
         elif isinstance(field_instance, ListField):
-            return self.serialize_list_field(field_instance, field_name, field_value, **kwargs)
+            return self.serialize_list_field(
+                field_instance, field_name, field_value, **kwargs
+            )
 
         elif isinstance(field_instance, DictField):
-            return self.serialize_dict_field(field_instance, field_name, field_value, **kwargs)
+            return self.serialize_dict_field(
+                field_instance, field_name, field_value, **kwargs
+            )
 
         elif callable(field_instance):
-            return self.serialize_callable_field(obj, field_instance, field_name, field_value, **kwargs)
+            return self.serialize_callable_field(
+                obj, field_instance, field_name, field_value, **kwargs
+            )
 
         return field_value
 
-    def serialize_callable_field(self, obj, field_instance, field_name, field_value, **kwargs):
+    def serialize_callable_field(
+        self, obj, field_instance, field_name, field_value, **kwargs
+    ):
         """Execute a callable field and return it or serialize
         it based on its related resource defined in the `related_resources` map.
         """
@@ -468,7 +512,9 @@ class Resource(object):
         """
         if field_instance.field:
             return {
-                key: self.get_field_value(elem, field_name, field_instance=field_instance.field, **kwargs)
+                key: self.get_field_value(
+                    elem, field_name, field_instance=field_instance.field, **kwargs
+                )
                 for (key, elem) in field_value.items()
             }
         # ... or simply return the dict intact, if the field type
@@ -528,8 +574,8 @@ class Resource(object):
         # Drop the kwargs we don't need any more (we're passing `kwargs` to
         # child resources so we don't want to pass `fields` and `params` that
         # pertain to the parent resource).
-        kwargs.pop('fields', None)
-        kwargs.pop('params', None)
+        kwargs.pop("fields", None)
+        kwargs.pop("params", None)
 
         # Fill in the `data` dict by serializing each of the requested fields
         # one by one.
@@ -552,11 +598,12 @@ class Resource(object):
                     if isinstance(value, mongoengine.document.Document):
                         value = related_resource.serialize_field(value)
                     elif isinstance(value, dict):
-                        value = dict((k, related_resource.serialize_field(v))
-                                     for (k, v) in value.items())
+                        value = {
+                            k: related_resource.serialize_field(v)
+                            for (k, v) in value.items()
+                        }
                     else:  # assume queryset or list
-                        value = [related_resource.serialize_field(o)
-                                 for o in value]
+                        value = [related_resource.serialize_field(o) for o in value]
             else:
                 try:
                     value = self.get_field_value(obj, field, **kwargs)
@@ -601,7 +648,7 @@ class Resource(object):
         """
         # When creating or updating a single object, delegate the validation
         # to a more specific subresource, if it exists
-        if (request.method == 'PUT' and obj) or request.method == 'POST':
+        if (request.method == "PUT" and obj) or request.method == "POST":
             subresource = self._subresource(obj)
             if subresource:
                 subresource._raw_data = self._raw_data
@@ -631,10 +678,12 @@ class Resource(object):
         # validation
         if self.schema:
             if CleancatSchema is None and ModelSchema is None:
-                raise ImportError('Cannot validate schema without CleanCat or Marshmallow!')
+                raise ImportError(
+                    "Cannot validate schema without CleanCat or Marshmallow!"
+                )
 
-            if request.method == 'PUT' and obj is not None:
-                obj_data = dict([(key, getattr(obj, key)) for key in obj._fields.keys()])
+            if request.method == "PUT" and obj is not None:
+                obj_data = {key: getattr(obj, key) for key in obj._fields.keys()}
             else:
                 obj_data = None
 
@@ -643,10 +692,12 @@ class Resource(object):
                     schema = self.schema(self.data, obj_data)
                     self.data = schema.full_clean()
                 except SchemaValidationError:
-                    raise ValidationError({'field-errors': schema.field_errors, 'errors': schema.errors })
+                    raise ValidationError(
+                        {"field-errors": schema.field_errors, "errors": schema.errors}
+                    )
             elif ModelSchema is not None:
                 try:
-                    partial = bool(request.method == 'PUT' and obj is not None)
+                    partial = bool(request.method == "PUT" and obj is not None)
                     self.data = self.schema().load(self.data, partial=partial)
                 except MarshmallowValidationError as ex:
                     raise ValidationError(ex.messages)
@@ -658,22 +709,24 @@ class Resource(object):
         """
         document_fields = set(self.fields + self.get_optional_fields())
 
-        if request.method == 'PUT':
+        if request.method == "PUT":
             # make sure to get full documents for updates
             return self.document.objects.only(*document_fields)
         else:
             requested_fields = self.get_requested_fields(params=self.params)
-            requested_root_fields = set(f.split('.', 1)[0] for f in requested_fields)
+            requested_root_fields = {f.split(".", 1)[0] for f in requested_fields}
             root_mask = requested_root_fields & document_fields
             mask = []
 
             for requested_field in requested_fields:
-                root_field = requested_field.split('.', 1)[0]
+                root_field = requested_field.split(".", 1)[0]
                 if root_field in root_mask:
                     if "." in requested_field:
                         field_instance = self.document._fields.get(root_field)
                         if isinstance(field_instance, (ReferenceField, ListField)):
-                            raise ValidationError(f"Dot access not supported for {root_field}!")
+                            raise ValidationError(
+                                f"Dot access not supported for {root_field}!"
+                            )
 
                     mask.append(requested_field)
 
@@ -699,7 +752,7 @@ class Resource(object):
         # those requests do not serialize the object (a successful DELETE
         # simply returns a `{}`, at least by default). We still want to fetch
         # related resources for GET and PUT.
-        if request.method != 'DELETE':
+        if request.method != "DELETE":
             self.fetch_related_resources(
                 [obj], self.get_requested_fields(params=self.params)
             )
@@ -713,12 +766,12 @@ class Resource(object):
 
         field_attrs = {}
         for field, limits in self.fields_to_paginate.items():
-            page = params.get(f'{field}_page', 1)
-            per_page = params.get(f'{field}_per_page', limits[0])
+            page = params.get(f"{field}_page", 1)
+            per_page = params.get(f"{field}_per_page", limits[0])
             if not isint(page):
-                raise ValidationError(f'{field}_page must be an integer.')
+                raise ValidationError(f"{field}_page must be an integer.")
             if not isint(per_page):
-                raise ValidationError(f'{field}_per_page must be an integer.')
+                raise ValidationError(f"{field}_per_page must be an integer.")
 
             page, per_page = int(page), int(per_page)
             if per_page > limits[1]:
@@ -726,7 +779,7 @@ class Resource(object):
                     f"Per-page limit ({per_page}) for {field} too large ({limits[1]})."
                 )
             if page < 0:
-                raise ValidationError(f'{field}_page must be a non-negative integer.')
+                raise ValidationError(f"{field}_page must be a non-negative integer.")
 
             per_page = min(per_page, limits[1])
             start_index = (page - 1) * per_page
@@ -777,7 +830,6 @@ class Resource(object):
                 new_value = rel_objs[0] if isinstance(old_value, DBRef) else rel_objs
                 set_value(obj, field_name, new_value)
 
-
     def apply_filters(self, qs, params=None):
         """
         Given this resource's filters, and the params of the request that's
@@ -798,16 +850,16 @@ class Resource(object):
 
             # special handling of empty / null params
             # http://werkzeug.pocoo.org/docs/0.9/utils/ url_decode returns '' for empty params
-            if value == '':
+            if value == "":
                 value = None
             elif value in ['""', "''"]:
-                value = ''
+                value = ""
 
             negate = False
-            op_name = ''
-            parts = key.split('__')
+            op_name = ""
+            parts = key.split("__")
             for i in range(len(parts) + 1, 0, -1):
-                field = '__'.join(parts[:i])
+                field = "__".join(parts[:i])
                 try:
                     allowed_operators = self._normal_filters[field]
                 except KeyError:
@@ -832,8 +884,8 @@ class Resource(object):
                     parts.pop()
                 else:
                     # assume it's part of a lookup
-                    op_name = ''
-                if parts and parts[-1] == 'not':
+                    op_name = ""
+                if parts and parts[-1] == "not":
                     negate = True
                     parts.pop()
 
@@ -843,7 +895,7 @@ class Resource(object):
             if negate and not operator.allow_negation:
                 continue
             if parts:
-                field = '%s__%s' % (field, '__'.join(parts))
+                field = "{}__{}".format(field, "__".join(parts))
             field = self._reverse_rename_fields.get(field, field)
             qs = operator().apply(qs, field, value, negate)
         return qs
@@ -859,17 +911,18 @@ class Resource(object):
 
         if self.allowed_ordering:
             # NOTE only one sort parameter supported
-            oby = params.get('_sort')
+            oby = params.get("_sort")
             if oby:
                 with_sign = oby[0] in {"+", "-"}
                 order_sign = oby[0] if with_sign else "+"
                 order_par = oby[1:] if with_sign else oby
 
-                if order_par in self._normal_allowed_ordering or \
-                        any(p.match(order_par) for p in self._regex_allowed_ordering):
+                if order_par in self._normal_allowed_ordering or any(
+                    p.match(order_par) for p in self._regex_allowed_ordering
+                ):
                     order_par = self._reverse_rename_fields.get(order_par, order_par)
 
-                order_by = f'{order_sign}{order_par}'
+                order_by = f"{order_sign}{order_par}"
                 qs = qs.order_by(order_by)
 
         return qs
@@ -884,7 +937,7 @@ class Resource(object):
             params = self.params
         if self.paginate:
             # _limit and _skip validation
-            for par in ['_limit', 'per_page']:
+            for par in ["_limit", "per_page"]:
                 if par in params:
                     if not isint(params[par]):
                         raise ValidationError(
@@ -897,13 +950,17 @@ class Resource(object):
             else:
                 limit = min(int(self.default_limit), max_limit)
 
-            for par in ['_skip', 'page']:
+            for par in ["_skip", "page"]:
                 if par in params:
                     if not isint(params[par]):
-                        raise ValidationError(f'{par} must be an integer!')
+                        raise ValidationError(f"{par} must be an integer!")
                     if params[par] and int(params[par]) < 0:
-                        raise ValidationError(f'{par} must be a non-negative integer')
-                    skip = int(params[par]) if par == '_skip' else (int(params[par])-1) * limit
+                        raise ValidationError(f"{par} must be a non-negative integer")
+                    skip = (
+                        int(params[par])
+                        if par == "_skip"
+                        else (int(params[par]) - 1) * limit
+                    )
                     break
             else:
                 skip = 0
@@ -927,9 +984,9 @@ class Resource(object):
         extra = {}
 
         if self.view_method == methods.Download:
-            fmt = params.get('format')
+            fmt = params.get("format")
             if fmt not in self.download_formats:
-                raise ValueError(f'`format` must be one of {self.download_formats}')
+                raise ValueError(f"`format` must be one of {self.download_formats}")
 
         custom_qs = True
         if qs is None:
@@ -946,7 +1003,7 @@ class Resource(object):
             qs = qfilter(qs)
 
         # set total count
-        extra['total_count'] = qs.count()
+        extra["total_count"] = qs.count()
 
         # Apply pagination to the queryset (if no custom queryset provided)
         bulk_methods = {methods.BulkUpdate, methods.BulkDelete}
@@ -958,10 +1015,12 @@ class Resource(object):
         elif not custom_qs:
             # no need to skip/limit if a custom `qs` was provided
             skip, limit = self.get_skip_and_limit(params)
-            qs = qs.skip(skip).limit(limit+1)  # get one extra to determine has_more
+            qs = qs.skip(skip).limit(limit + 1)  # get one extra to determine has_more
             if self.view_method != methods.Download:
                 qs = self.apply_field_pagination(qs, params)
-            extra['total_pages'] = int(extra['total_count']/limit) + bool(extra['total_count'] % limit)
+            extra["total_pages"] = int(extra["total_count"] / limit) + bool(
+                extra["total_count"] % limit
+            )
 
         # Needs to be at the end as it returns a list, not a queryset
         if self.select_related:
@@ -982,9 +1041,7 @@ class Resource(object):
             objs = objs[:-1]
 
         # bulk-fetch related resources for moar speed
-        self.fetch_related_resources(
-            objs, self.get_requested_fields(params=params)
-        )
+        self.fetch_related_resources(objs, self.get_requested_fields(params=params))
 
         return objs, has_more, extra
 
@@ -995,7 +1052,9 @@ class Resource(object):
             parent_resources += [self]
 
         if self._dirty_fields:
-            for field_name in set(self._dirty_fields) & set(self.get_save_related_fields()):
+            for field_name in set(self._dirty_fields) & set(
+                self.get_save_related_fields()
+            ):
                 try:
                     related_resource = self.get_related_resources()[field_name]
                 except KeyError:
@@ -1008,16 +1067,22 @@ class Resource(object):
                     instance = getattr(obj, field_name)
                     if instance:
                         if related_resource:
-                            related_resource().save_object(instance, parent_resources=parent_resources)
+                            related_resource().save_object(
+                                instance, parent_resources=parent_resources
+                            )
                         else:
                             instance.save()
 
                 # If it's a ListField(ReferenceField), save all instances.
-                if isinstance(field_instance, ListField) and isinstance(field_instance.field, ReferenceField):
+                if isinstance(field_instance, ListField) and isinstance(
+                    field_instance.field, ReferenceField
+                ):
                     instance_list = getattr(obj, field_name)
                     for instance in instance_list:
                         if related_resource:
-                            related_resource().save_object(instance, parent_resources=parent_resources)
+                            related_resource().save_object(
+                                instance, parent_resources=parent_resources
+                            )
                         else:
                             instance.save()
 
@@ -1025,7 +1090,7 @@ class Resource(object):
         signal_kwargs = {"skip": kwargs.get("skip_post_save", False)}
         self.save_related_objects(obj, **kwargs)
         obj.save(signal_kwargs=signal_kwargs, **kwargs).reload()
-        self._dirty_fields = None # No longer dirty.
+        self._dirty_fields = None  # No longer dirty.
 
     def get_object_dict(self, data=None, update=False):
         if data is None:
@@ -1035,10 +1100,13 @@ class Resource(object):
         if update:
             # We want to update only the fields that appear in the request data
             # rather than re-updating all the document's existing/other fields.
-            filter_fields &= set(self._reverse_rename_fields.get(field, field)
-                                 for field in self.raw_data.keys())
-        update_dict = {field: value for field, value in data.items()
-                       if field in filter_fields}
+            filter_fields &= {
+                self._reverse_rename_fields.get(field, field)
+                for field in self.raw_data.keys()
+            }
+        update_dict = {
+            field: value for field, value in data.items() if field in filter_fields
+        }
         return update_dict
 
     def create_object(self, data=None, save=True, parent_resources=None):
@@ -1052,7 +1120,9 @@ class Resource(object):
     def update_object(self, obj, data=None, save=True, parent_resources=None):
         subresource = self._subresource(obj)
         if subresource:
-            return subresource.update_object(obj, data=data, save=save, parent_resources=parent_resources)
+            return subresource.update_object(
+                obj, data=data, save=save, parent_resources=parent_resources
+            )
 
         update_dict = self.get_object_dict(data, update=True) if save else data
 
@@ -1063,13 +1133,13 @@ class Resource(object):
             field_instance = hasattr(obj, "_fields") and obj._fields.get(field)
 
             # don't hit DB for comparing ReferenceFields
-            if hasattr(obj, '_db_data') and isinstance(field_instance, ReferenceField):
+            if hasattr(obj, "_db_data") and isinstance(field_instance, ReferenceField):
                 db_val = obj._db_data.get(field)
-                id_from_obj = db_val and getattr(db_val, 'id', db_val)
-                id_from_data = value and getattr(value, 'pk', value)
+                id_from_obj = db_val and getattr(db_val, "id", db_val)
+                id_from_data = value and getattr(value, "pk", value)
                 if id_from_obj != id_from_data:
                     update = True
-            elif hasattr(obj, '_fields'):
+            elif hasattr(obj, "_fields"):
                 if isinstance(field_instance, DictField):
                     if value is None:
                         update = True
@@ -1077,15 +1147,20 @@ class Resource(object):
                         if obj[field] is None:
                             obj[field] = {}
                         self.update_object(obj[field], data=value, save=False)
-                elif field in self._related_resources and isinstance(field_instance, ListField) \
-                    and not isinstance(field_instance, EmbeddedDocumentListField):
+                elif (
+                    field in self._related_resources
+                    and isinstance(field_instance, ListField)
+                    and not isinstance(field_instance, EmbeddedDocumentListField)
+                ):
                     if value is None:
                         update = True
                     else:
                         if obj[field] is None:
                             obj[field] = []
 
-                        res = self._related_resources[field](view_method=self.view_method)
+                        res = self._related_resources[field](
+                            view_method=self.view_method
+                        )
                         for i, v in enumerate(value):
                             if v is None:
                                 continue  # no update requested for list item
@@ -1096,7 +1171,9 @@ class Resource(object):
                                 obj[field][i] = v
                             res.save_object(v)
                 elif field_instance.primary_key:
-                    raise ValidationError(f'`{field}` is primary key and cannot be updated')
+                    raise ValidationError(
+                        f"`{field}` is primary key and cannot be updated"
+                    )
                 elif not equal(getattr(obj, field), value):
                     update = True
             elif not equal(obj.get(field), value):
@@ -1116,7 +1193,7 @@ class Resource(object):
 
 # Py2/3 compatible way to do metaclasses (or six.add_metaclass)
 body = vars(Resource).copy()
-body.pop('__dict__', None)
-body.pop('__weakref__', None)
+body.pop("__dict__", None)
+body.pop("__weakref__", None)
 
 Resource = ResourceMeta(Resource.__name__, Resource.__bases__, body)

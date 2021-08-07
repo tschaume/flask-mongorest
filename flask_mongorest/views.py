@@ -1,55 +1,57 @@
+# -*- coding: utf-8 -*-
+import hashlib
+import json
 import os
 import sys
 import time
-import json
 import traceback
-import mimerender
-import boto3
-import hashlib
-import traceback
-import mongoengine
-
 from collections import deque
 from gzip import GzipFile
 from io import BytesIO, StringIO
+from urllib.parse import unquote
+
+import boto3
+import mongoengine
+from botocore.errorfactory import ClientError
 from fdict import fdict
-from collections import deque
 from flask import render_template, request
 from flask.views import MethodView
 from flask_sse import sse
+from mimerender import FlaskMimeRender, register_mime
+from werkzeug.exceptions import NotFound, Unauthorized
+
 from flask_mongorest import methods
 from flask_mongorest.exceptions import ValidationError
 from flask_mongorest.utils import MongoEncoder
-from werkzeug.exceptions import NotFound, Unauthorized
-from mimerender import register_mime, FlaskMimeRender
-from botocore.errorfactory import ClientError
-from urllib.parse import unquote
 
-BUCKET = os.environ.get('S3_DOWNLOADS_BUCKET', 'mongorest-downloads')
-CNAME = os.environ.get('PORTAL_CNAME')
+BUCKET = os.environ.get("S3_DOWNLOADS_BUCKET", "mongorest-downloads")
+CNAME = os.environ.get("PORTAL_CNAME")
 
-s3_client = boto3.client('s3')
-mimerender = FlaskMimeRender(global_override_input_key='short_mime')
-register_mime('gz', ('application/gzip',))
+s3_client = boto3.client("s3")
+flask_mimerender = FlaskMimeRender(global_override_input_key="short_mime")
+register_mime("gz", ("application/gzip",))
+
 
 def render_json(**payload):
     return json.dumps(payload, allow_nan=True, cls=MongoEncoder)
 
+
 def render_html(**payload):
     d = json.dumps(payload, cls=MongoEncoder, sort_keys=True, indent=4)
-    return render_template('mongorest/debug.html', data=d)
+    return render_template("mongorest/debug.html", data=d)
+
 
 def render_gz(**payload):
     s3 = payload.get("s3")
 
     if s3 and s3["update"]:
-        fmt = request.args.get('format')
+        fmt = request.args.get("format")
         if fmt not in {"json", "csv"}:
             raise ValueError(f"Format {fmt} not supported!")
 
         df_keys = {"data", "columns", "index"}
 
-        for obj in payload['data']:
+        for obj in payload["data"]:
             for k in list(obj.keys()):
                 if isinstance(obj[k], list):
                     if all("id" in d for d in obj[k]):
@@ -64,9 +66,9 @@ def render_gz(**payload):
 
         if fmt == "json":
             content_type = "application/json"
-            contents = json.dumps(payload['data'], allow_nan=True, cls=MongoEncoder)
+            contents = json.dumps(payload["data"], allow_nan=True, cls=MongoEncoder)
         else:
-            from pandas import json_normalize, DataFrame
+            from pandas import DataFrame, json_normalize
 
             content_type = "text/csv"
             contents = None
@@ -86,7 +88,9 @@ def render_gz(**payload):
                     else:
                         contents.write("\n\n")
 
-                    meta = json_normalize({k: v for k, v in obj.items() if k not in df_keys})
+                    meta = json_normalize(
+                        {k: v for k, v in obj.items() if k not in df_keys}
+                    )
                     meta.to_csv(contents)
                     contents.write("\n")
                     df.to_csv(contents)
@@ -98,34 +102,38 @@ def render_gz(**payload):
         if isinstance(contents, StringIO):
             contents = contents.getvalue()
 
-        with GzipFile(mode='wb', fileobj=gzip_buffer) as gzip_file:
-            gzip_file.write(contents.encode('utf-8'))  # need to give full contents to compression
+        with GzipFile(mode="wb", fileobj=gzip_buffer) as gzip_file:
+            gzip_file.write(
+                contents.encode("utf-8")
+            )  # need to give full contents to compression
 
         body = gzip_buffer.getvalue()
         s3_client.put_object(
             Bucket=BUCKET,
             Key=s3["key"],
             ContentType=content_type,
-            ContentEncoding='gzip',
-            Body=body
+            ContentEncoding="gzip",
+            Body=body,
         )
         return body
 
     retr = s3_client.get_object(Bucket=BUCKET, Key=s3["key"])
-    buffer = BytesIO(retr['Body'].read())
+    buffer = BytesIO(retr["Body"].read())
     return buffer.getvalue()
 
 
 try:
-    text_type = unicode # Python 2
+    text_type = unicode  # Python 2
 except NameError:
-    text_type = str # Python 3
+    text_type = str  # Python 3
+
 
 def get_exception_message(e):
     """ME ValidationError has compatibility code with py2.6
     that doesn't follow py3 .args interface. This works around that.
     """
     from mongoengine.errors import ValidationError as MEValidationError
+
     if isinstance(e, MEValidationError) and not e.args:
         return e.message
     else:
@@ -141,15 +149,16 @@ def serialize_mongoengine_validation_error(e):
     def serialize_errors(e):
         if isinstance(e, Exception):
             return get_exception_message(e)
-        elif hasattr(e, 'items'):
-            return dict((k, serialize_errors(v)) for (k, v) in e.items())
+        elif hasattr(e, "items"):
+            return {k: serialize_errors(v) for (k, v) in e.items()}
         else:
             return text_type(e)
 
     if e.errors:
-        return {'field-errors': serialize_errors(e.errors)}
+        return {"field-errors": serialize_errors(e.errors)}
     else:
-        return {'error': get_exception_message(e)}
+        return {"error": get_exception_message(e)}
+
 
 class ResourceView(MethodView):
     resource = None
@@ -157,9 +166,9 @@ class ResourceView(MethodView):
     authentication_methods = []
 
     def __init__(self):
-        assert(self.resource and self.methods)
+        assert self.resource and self.methods
 
-    @mimerender(default='json', json=render_json, html=render_html, gz=render_gz)
+    @flask_mimerender(default="json", json=render_json, html=render_html, gz=render_gz)
     def dispatch_request(self, *args, **kwargs):
         # keep all the logic in a helper method (_dispatch_request) so that
         # it's easy for subclasses to override this method (when they don't want to use
@@ -173,23 +182,23 @@ class ResourceView(MethodView):
             if authentication_method().authorized():
                 authorized = True
         if not authorized:
-            return {'error': 'Unauthorized'}, '401 Unauthorized'
+            return {"error": "Unauthorized"}, "401 Unauthorized"
 
         try:
             self._resource = self.requested_resource(request)
             return super(ResourceView, self).dispatch_request(*args, **kwargs)
         except (ValueError, ValidationError, mongoengine.errors.ValidationError) as e:
-            return {'error': str(e)}, '400 Bad Request'
+            return {"error": str(e)}, "400 Bad Request"
         except (Unauthorized, mongoengine.errors.NotUniqueError) as e:
-            return {'error': str(e)}, '401 Unauthorized'
+            return {"error": str(e)}, "401 Unauthorized"
         except (NotFound, mongoengine.queryset.DoesNotExist) as e:
-            return {'error': str(e)}, '404 Not Found'
+            return {"error": str(e)}, "404 Not Found"
         except Exception:
             exc_type, exc_value, exc_tb = sys.exc_info()
             tb = traceback.format_exception(exc_type, exc_value, exc_tb)
-            err = ''.join(tb)
+            err = "".join(tb)
             print(err)
-            return {'error': err}, '500 Internal Server Error'
+            return {"error": err}, "500 Internal Server Error"
 
     def handle_validation_error(self, e):
         if isinstance(e, ValidationError):
@@ -201,23 +210,23 @@ class ResourceView(MethodView):
 
     def requested_resource(self, request):
         """In the case where the Resource that this view is associated with points to a Document class
-           that allows inheritance, this method should indicate the specific Resource class to use
-           when processing POST and PUT requests through information available in the request
-           itself or through other means."""
+        that allows inheritance, this method should indicate the specific Resource class to use
+        when processing POST and PUT requests through information available in the request
+        itself or through other means."""
         # Default behavior is to use the (base) resource class
         return self.resource()
 
     def get(self, **kwargs):
-        pk = kwargs.pop('pk', None)
-        short_mime = kwargs.pop('short_mime', None)
-        fmt = self._resource.params.get('format')
+        pk = kwargs.pop("pk", None)
+        short_mime = kwargs.pop("short_mime", None)
+        fmt = self._resource.params.get("format")
 
         # Set the view_method on a resource instance
         if pk:
             self._resource.view_method = methods.Fetch
         elif short_mime:
-            if short_mime != 'gz':
-                raise ValueError(f'{short_mime} not supported')
+            if short_mime != "gz":
+                raise ValueError(f"{short_mime} not supported")
             self._resource.view_method = methods.Download
         else:
             self._resource.view_method = methods.BulkFetch
@@ -245,16 +254,20 @@ class ResourceView(MethodView):
                 elif len(result) == 3:
                     objs, has_more, extra = result
                 else:
-                    raise ValueError('Unsupported value of resource.get_objects')
+                    raise ValueError("Unsupported value of resource.get_objects")
 
                 primary_keys = [str(obj.pk) for obj in objs]
                 if has_last_modified:
-                    last_modifieds = [obj.last_modified for obj in objs if hasattr(obj, "last_modified")]
+                    last_modifieds = [
+                        obj.last_modified
+                        for obj in objs
+                        if hasattr(obj, "last_modified")
+                    ]
                     last_modified = max(last_modifieds) if last_modifieds else None
 
                 dct = {"ids": primary_keys, "params": self._resource.params}
                 sha1 = hashlib.sha1(
-                    json.dumps(dct, sort_keys=True).encode('utf-8')
+                    json.dumps(dct, sort_keys=True).encode("utf-8")
                 ).hexdigest()
                 filename = f"{sha1}.{fmt}"
                 key = f"{CNAME}/{filename}" if CNAME else filename
@@ -268,9 +281,13 @@ class ResourceView(MethodView):
                     extra["s3"]["update"] = True
 
                 if not extra["s3"]["update"]:
-                    return extra, '200 OK', {
-                        'Content-Disposition': f'attachment; filename="{filename}.{short_mime}"'
-                    }
+                    return (
+                        extra,
+                        "200 OK",
+                        {
+                            "Content-Disposition": f'attachment; filename="{filename}.{short_mime}"'
+                        },
+                    )
 
             # Create a queryset filter to control read access to the underlying objects
             qfilter = lambda qs: self.has_read_permission(request, qs.clone())
@@ -284,11 +301,11 @@ class ResourceView(MethodView):
                 objs, has_more, extra_update = result
                 extra.update(extra_update)
             else:
-                raise ValueError('Unsupported value of resource.get_objects')
+                raise ValueError("Unsupported value of resource.get_objects")
 
             # Serialize the objects one by one
             data = []
-            url = unquote(request.url).encode('utf-8')
+            url = unquote(request.url).encode("utf-8")
             channel = hashlib.sha1(url).hexdigest()
 
             if "s3" not in extra or extra["s3"]["update"]:
@@ -308,16 +325,20 @@ class ResourceView(MethodView):
                         toc = time.perf_counter()
                         nobjs = batch_size
                         if idx == total_count - 1:
-                            nobjs = total_count - batch_size * int(idx/batch_size)
-                        print(f"#{idx} Took {toc - tic:0.4f}s to serialize {nobjs} objects.")
+                            nobjs = total_count - batch_size * int(idx / batch_size)
+                        print(
+                            f"#{idx} Took {toc - tic:0.4f}s to serialize {nobjs} objects."
+                        )
                         if self._resource.view_method == methods.Download:
-                            sse.publish({"message": idx + 1}, type="download", channel=channel)
+                            sse.publish(
+                                {"message": idx + 1}, type="download", channel=channel
+                            )
                         tic = time.perf_counter()
 
-            ret = {'data': data}
+            ret = {"data": data}
 
             if has_more is not None:
-                ret['has_more'] = has_more
+                ret["has_more"] = has_more
 
             if extra:
                 ret.update(extra)
@@ -329,14 +350,18 @@ class ResourceView(MethodView):
 
         if self._resource.view_method == methods.Download:
             sse.publish({"message": 0}, type="download", channel=channel)
-            return ret, '200 OK', {
-                'Content-Disposition': f'attachment; filename="{filename}.{short_mime}"'
-            }
+            return (
+                ret,
+                "200 OK",
+                {
+                    "Content-Disposition": f'attachment; filename="{filename}.{short_mime}"'
+                },
+            )
         else:
             return ret
 
     def post(self, **kwargs):
-        if kwargs.pop('pk'):
+        if kwargs.pop("pk"):
             raise NotFound("Did you mean to use PUT?")
 
         # Set the view_method on a resource instance
@@ -355,9 +380,7 @@ class ResourceView(MethodView):
             tic = time.perf_counter()
             while len(raw_data_deque):
                 self._resource._raw_data = raw_data_deque.popleft()
-                data.append(self.create_object(
-                    skip_post_save=bool(raw_data_deque)
-                ))
+                data.append(self.create_object(skip_post_save=bool(raw_data_deque)))
                 dt = time.perf_counter() - tic
                 if dt > 50:
                     break
@@ -365,14 +388,14 @@ class ResourceView(MethodView):
             count = len(data)
             msg = f"Created {count} objects in {dt:0.1f}s ({count/dt:0.3f}/s)."
             print(msg)
-            ret = {'data': data, 'count': count}
+            ret = {"data": data, "count": count}
             if raw_data_deque:
                 remain = len(raw_data_deque)
                 msg += f" Remaining {remain} objects skipped to avoid Server Timeout."
-                ret['warning'] = msg
-            return ret, '201 Created'
+                ret["warning"] = msg
+            return ret, "201 Created"
         else:
-            raise ValidationError('wrong payload type')
+            raise ValidationError("wrong payload type")
 
     def create_object(self, skip_post_save=False):
         self._resource.validate_request()
@@ -385,7 +408,9 @@ class ResourceView(MethodView):
         if not self.has_add_permission(request, obj):
             raise Unauthorized
 
-        self._resource.save_object(obj, force_insert=True, skip_post_save=skip_post_save)
+        self._resource.save_object(
+            obj, force_insert=True, skip_post_save=skip_post_save
+        )
         ret = self._resource.serialize(obj, params=request.args)
         if self._resource.uri_prefix:
             return ret, "201 Created", {"Location": self._resource._url(str(obj.id))}
@@ -417,20 +442,20 @@ class ResourceView(MethodView):
                 if dt > 50:
                     break
         except ValidationError as e:
-            e.args[0]['count'] = count
+            e.args[0]["count"] = count
             raise e
         else:
             msg = f"Updated {count} objects in {dt:0.1f}s ({count/dt:0.3f}/s)."
             print(msg)
-            ret = {'count': count}
+            ret = {"count": count}
             remain = nobjs - count
             if remain:
                 msg += f" Remaining {remain} objects skipped to avoid Server Timeout."
-                ret['warning'] = msg
+                ret["warning"] = msg
             return ret
 
     def put(self, **kwargs):
-        pk = kwargs.pop('pk', None)
+        pk = kwargs.pop("pk", None)
 
         # Set the view_method on a resource instance
         if pk:
@@ -461,15 +486,15 @@ class ResourceView(MethodView):
 
             # Update all the objects and return their count
             ret = self.process_objects(objs)
-            ret['has_more'] = has_more
+            ret["has_more"] = has_more
             ret.update(extra)
             return ret
         else:
             obj = self._resource.get_object(pk)
             self.process_object(obj)
-            raw_data = fdict(self._resource.raw_data, delimiter='.')
-            fields = ','.join(raw_data.keys())
-            return self._resource.serialize(obj, params={'_fields': fields})
+            raw_data = fdict(self._resource.raw_data, delimiter=".")
+            fields = ",".join(raw_data.keys())
+            return self._resource.serialize(obj, params={"_fields": fields})
 
     def delete_object(self, obj, skip_post_delete=False):
         """Delete an object"""
@@ -496,20 +521,20 @@ class ResourceView(MethodView):
                 if dt > 50:
                     break
         except ValidationError as e:
-            e.args[0]['count'] = count
+            e.args[0]["count"] = count
             raise e
         else:
             msg = f"Deleted {count} objects in {dt:0.1f}s ({count/dt:0.3f}/s)."
             print(msg)
-            ret = {'count': count}
+            ret = {"count": count}
             remain = nobjs - count
             if remain:
                 msg += f" Remaining {remain} objects skipped to avoid Server Timeout."
-                ret['warning'] = msg
+                ret["warning"] = msg
             return ret
 
     def delete(self, **kwargs):
-        pk = kwargs.pop('pk', None)
+        pk = kwargs.pop("pk", None)
 
         # Set the view_method on a resource instance
         if pk:
@@ -527,13 +552,13 @@ class ResourceView(MethodView):
 
             # Delete all the objects and return their count
             ret = self.delete_objects(objs)
-            ret['has_more'] = has_more
+            ret["has_more"] = has_more
             ret.update(extra)
             return ret
         else:
             obj = self._resource.get_object(pk)
             self.delete_object(obj)
-            return {'count': 1}
+            return {"count": 1}
 
     # This takes a QuerySet as an argument and then
     # returns a query set that this request can read

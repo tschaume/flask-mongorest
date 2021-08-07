@@ -71,7 +71,7 @@ curl -H "Content-Type: application/json" -X POST -d \
   "content": {
     "text": "this is our test post content"
   }
-} 
+}
 ```
 Get a Post:
 ```
@@ -83,7 +83,7 @@ curl http://0.0.0.0:5000/posts/1/
   "content": {
     "text": "this is our test post content"
   }
-} 
+}
 ```
 List all Posts or filter by the title:
 ```

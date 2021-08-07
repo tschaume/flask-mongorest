@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Flask-MongoRest operators.
 
@@ -49,8 +50,9 @@ And this way, the request we mentioned above would result in:
     Student.objects.filter(score__lte=upper, score__gte=lower)
 """
 
-from fastnumbers import fast_float
 from dateutil.parser import isoparse
+from fastnumbers import fast_float
+
 from flask_mongorest.exceptions import ValidationError
 
 
@@ -59,8 +61,8 @@ def get_bool_value(value, negate):
         return not value if negate else value
 
     lowercase_value = value.lower()
-    true = {'true', '1'}
-    false = {'false', '0'}
+    true = {"true", "1"}
+    false = {"false", "0"}
 
     if lowercase_value in false:
         bool_value = False
@@ -72,8 +74,9 @@ def get_bool_value(value, negate):
 
 class Operator(object):
     """Base class that all the other operators should inherit from."""
-    op = 'exact'
-    typ = 'string'
+
+    op = "exact"
+    typ = "string"
 
     # Can be overridden via constructor.
     allow_negation = False
@@ -88,48 +91,56 @@ class Operator(object):
 
     def prepare_queryset_kwargs(self, field, value, negate):
         v = fast_float(value) if self.typ == "number" else value
-        parts = [field, 'not' if negate else None, self.op]
-        return {'__'.join(filter(None, parts)): v}
+        parts = [field, "not" if negate else None, self.op]
+        return {"__".join(filter(None, parts)): v}
 
     def apply(self, queryset, field, value, negate=False):
         kwargs = self.prepare_queryset_kwargs(field, value, negate)
         return queryset.filter(**kwargs)
 
+
 class Ne(Operator):
-    op = 'ne'
+    op = "ne"
+
 
 class Lt(Operator):
-    op = 'lt'
-    typ = 'number'
+    op = "lt"
+    typ = "number"
+
 
 class Lte(Operator):
-    op = 'lte'
-    typ = 'number'
+    op = "lte"
+    typ = "number"
+
 
 class Gt(Operator):
-    op = 'gt'
-    typ = 'number'
+    op = "gt"
+    typ = "number"
+
 
 class Gte(Operator):
-    op = 'gte'
-    typ = 'number'
+    op = "gte"
+    typ = "number"
+
 
 class Exact(Operator):
     def prepare_queryset_kwargs(self, field, value, negate):
         # Using <field>__exact causes mongoengine to generate a regular
         # expression query, which we'd like to avoid.
         if negate:
-            return {'%s__ne' % field: value}
+            return {"%s__ne" % field: value}
         else:
             return {field: value}
 
+
 class IExact(Operator):
-    op = 'iexact'
+    op = "iexact"
+
 
 class In(Operator):
     allow_negation = True
-    op = 'in'
-    typ = 'array'
+    op = "in"
+    typ = "array"
 
     def prepare_queryset_kwargs(self, field, value, negate):
         # this is null if the user submits an empty in expression (like
@@ -137,51 +148,60 @@ class In(Operator):
         value = value or []
 
         # only use 'in' or 'nin' if multiple values are specified
-        if ',' in value:
-            value = value.split(',')
-            op = negate and 'nin' or self.op
+        if "," in value:
+            value = value.split(",")
+            op = negate and "nin" or self.op
         else:
-            op = negate and 'ne' or ''
-        return {'__'.join(filter(None, [field, op])): value}
+            op = negate and "ne" or ""
+        return {"__".join(filter(None, [field, op])): value}
+
 
 class Contains(Operator):
     allow_negation = True
-    op = 'contains'
+    op = "contains"
+
 
 class IContains(Operator):
     allow_negation = True
-    op = 'icontains'
+    op = "icontains"
+
 
 class Startswith(Operator):
     allow_negation = True
-    op = 'startswith'
+    op = "startswith"
+
 
 class IStartswith(Operator):
     allow_negation = True
-    op = 'istartswith'
+    op = "istartswith"
+
 
 class Endswith(Operator):
     allow_negation = True
-    op = 'endswith'
+    op = "endswith"
+
 
 class IEndswith(Operator):
     allow_negation = True
-    op = 'iendswith'
+    op = "iendswith"
+
 
 class Boolean(Operator):
-    typ = 'boolean'
+    typ = "boolean"
     suf = "is"
 
     def prepare_queryset_kwargs(self, field, value, negate):
         return {field: get_bool_value(value, negate)}
 
+
 def date_prep(field, value, op):
     try:
         value = isoparse(value)
-    except ValueError as e:
+    except ValueError:
         raise ValidationError("Invalid date format - use ISO 8601")
 
     return {f"{field}__{op}": value}
+
 
 class Before(Operator):
     fmt = "date-time"
@@ -191,6 +211,7 @@ class Before(Operator):
     def prepare_queryset_kwargs(self, field, value, negate):
         return date_prep(field, value, self.op)
 
+
 class After(Operator):
     fmt = "date-time"
     suf = "after"
@@ -199,18 +220,21 @@ class After(Operator):
     def prepare_queryset_kwargs(self, field, value, negate):
         return date_prep(field, value, self.op)
 
+
 class Range(Operator):
-    op = 'range'
+    op = "range"
 
     def prepare_queryset_kwargs(self, field, value, negate=False):
         # NOTE negate not implemented
-        lower, upper = value.split(',')
-        return {field + '__gte': lower, field + '__lte': upper}
+        lower, upper = value.split(",")
+        return {field + "__gte": lower, field + "__lte": upper}
+
 
 class Size(Operator):
     allow_negation = True
     op = "size"
     typ = "number"
+
 
 class Exists(Operator):
     op = "exists"

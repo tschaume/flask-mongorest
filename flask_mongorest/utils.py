@@ -1,12 +1,15 @@
-import json
-import decimal
+# -*- coding: utf-8 -*-
 import datetime
-from bson.dbref import DBRef
-from bson.objectid import ObjectId
-from bson.decimal128 import Decimal128
-import mongoengine
+import decimal
+import json
 
-isbound = lambda m: getattr(m, 'im_self', None) is not None
+import mongoengine
+from bson.dbref import DBRef
+from bson.decimal128 import Decimal128
+from bson.objectid import ObjectId
+
+isbound = lambda m: getattr(m, "im_self", None) is not None
+
 
 def isint(int_str):
     try:
@@ -14,6 +17,7 @@ def isint(int_str):
         return True
     except (TypeError, ValueError):
         return False
+
 
 class MongoEncoder(json.JSONEncoder):
     def default(self, value, **kwargs):
@@ -35,8 +39,9 @@ class MongoEncoder(json.JSONEncoder):
 
 try:
     cmp
-except NameError: # Python 3
-    cmp = lambda a, b: (a>b)-(a<b)
+except NameError:  # Python 3
+    cmp = lambda a, b: (a > b) - (a < b)
+
 
 def cmp_fields(ordering):
     # Takes a list of fields and directions and returns a
@@ -49,7 +54,9 @@ def cmp_fields(ordering):
             if result:
                 return result
         return 0
+
     return _cmp
+
 
 def equal(a, b):
     """
@@ -81,7 +88,7 @@ def equal(a, b):
     # mongoengine documents.
     if isinstance(a, mongoengine.Document) and isinstance(b, mongoengine.Document):
         # Don't evaluate lazy documents
-        if getattr(a, '_lazy', False) and getattr(b, '_lazy', False):
+        if getattr(a, "_lazy", False) and getattr(b, "_lazy", False):
             return True
         return equal(dict(a.to_mongo()), dict(b.to_mongo()))
 
@@ -99,5 +106,5 @@ def equal(a, b):
 
     try:
         return a == b
-    except Exception: # Exception during comparison, mainly datetimes.
+    except Exception:  # Exception during comparison, mainly datetimes.
         return False

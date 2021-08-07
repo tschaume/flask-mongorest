@@ -1,34 +1,42 @@
-import sys
+# -*- coding: utf-8 -*-
 import inspect
+import sys
+
 
 class Fetch:
-    method = 'GET'
+    method = "GET"
+
 
 class Create:
-    method = 'POST'
+    method = "POST"
+
 
 class Update:
-    method = 'PUT'
+    method = "PUT"
+
 
 class Delete:
-    method = 'DELETE'
+    method = "DELETE"
 
 
 class BulkFetch:
-    method = 'GET'
+    method = "GET"
+
 
 class BulkCreate:
-    method = 'POST'
+    method = "POST"
+
 
 class BulkUpdate:
-    method = 'PUT'
+    method = "PUT"
+
 
 class BulkDelete:
-    method = 'DELETE'
+    method = "DELETE"
 
 
 class Download:
-    method = 'GET'
+    method = "GET"
 
 
 members = inspect.getmembers(sys.modules[__name__], inspect.isclass)
