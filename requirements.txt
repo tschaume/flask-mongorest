@@ -1,8 +1,11 @@
+boto3>=1.18.11
 fastnumbers>=3.1.0
+fdict>=0.8.1
 Flask>=2.0.1
 flask-mongoengine>=1.0.0
+flask-sse>=1.0.0
+marshmallow-mongoengine==0.30.2
 mimerender-pr36>=0.0.2
-mongoengine>=0.23.1
 pymongo>=3.12.0
 python-dateutil>=2.8.2
 unflatten>=0.1
