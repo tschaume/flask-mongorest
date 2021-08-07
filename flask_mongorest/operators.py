@@ -55,12 +55,17 @@ from flask_mongorest.exceptions import ValidationError
 
 
 def get_bool_value(value, negate):
-    if value in {'false', 'False'}:
+    if isinstance(value, (bool, int)):
+        return not value if negate else value
+
+    lowercase_value = value.lower()
+    true = {'true', '1'}
+    false = {'false', '0'}
+
+    if lowercase_value in false:
         bool_value = False
-    elif value in {'true', 'True'}:
+    elif lowercase_value in true:
         bool_value = True
-    else:
-        bool_value = bool(value)
 
     return not bool_value if negate else bool_value
 
