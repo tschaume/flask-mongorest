@@ -87,7 +87,7 @@ class Operator(object):
         return self
 
     def prepare_queryset_kwargs(self, field, value, negate):
-        v = fast_float(value) if typ == "number" else value
+        v = fast_float(value) if self.typ == "number" else value
         parts = [field, 'not' if negate else None, self.op]
         return {'__'.join(filter(None, parts)): v}
 
