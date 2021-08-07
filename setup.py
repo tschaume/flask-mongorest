@@ -13,14 +13,15 @@ with open(os.path.join(SETUP_PTH, "requirements.txt")) as f:
     required = f.read().splitlines()
 
 setup(
-    name='Flask-MongoRest',
-    version='0.2.3',
-    url='http://github.com/closeio/flask-mongorest',
+    name='flask-mongorest-mpcontribs',
+    use_scm_version=True,
+    setup_requires=["setuptools_scm"],
+    url='http://github.com/tschaume/flask-mongorest',
     license='BSD',
     author='Close.io',
     author_email='engineering@close.io',
-    maintainer='Close.io',
-    maintainer_email='engineering@close.io',
+    maintainer='Patrick Huck',
+    maintainer_email='phuck@lbl.gov',
     description='Flask restful API framework for MongoDB/MongoEngine',
     long_description=__doc__,
     packages=[
