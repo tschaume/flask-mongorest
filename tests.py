@@ -10,10 +10,7 @@ from mongoengine.errors import ValidationError
 
 import example.app as example
 
-try:
-    from mongoengine import SafeReferenceField
-except ImportError:
-    SafeReferenceField = None
+SafeReferenceField = None
 
 
 # HACK:

@@ -8,7 +8,6 @@ from mongoengine.fields import (
     IntField,
     ListField,
     ReferenceField,
-    SafeReferenceField,
     StringField,
 )
 
@@ -47,10 +46,7 @@ class Post(Document):
     author = ReferenceField(User)
     editor = ReferenceField(User)
     tags = ListField(StringField(max_length=30))
-    try:
-        user_lists = ListField(SafeReferenceField(User))
-    except NameError:
-        user_lists = ListField(ReferenceField(User))
+    user_lists = ListField(ReferenceField(User))
     sections = ListField(EmbeddedDocumentField(Content))
     content = EmbeddedDocumentField(Content)
     is_published = BooleanField()
