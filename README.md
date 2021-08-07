@@ -115,7 +115,7 @@ Request Params
 
 **_fields** => limit the response's fields to those named here (comma separated).
 
-**_order_by** => order results if this string is present in the Resource.allowed_ordering list.  
+**_sort** => order results if this string is present in the Resource.allowed_ordering list. Prepend +/- for asc/desc order.
 
 
 Resource Configuration

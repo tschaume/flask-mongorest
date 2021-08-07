@@ -854,17 +854,22 @@ class Resource(object):
         """
         if params is None:
             params = self.params
+
         if self.allowed_ordering:
-            oby = params.get('_order_by')
+            # NOTE only one sort parameter supported
+            oby = params.get('_sort')
             if oby:
-                order_params = None
-                if oby in self._normal_allowed_ordering:
-                    order_params = [self._reverse_rename_fields.get(p, p) for p in oby.split(',')]
-                elif any(p.match(oby) for p in self._regex_allowed_ordering):
-                    order_params = [oby]
-                if order_params:
-                    order_sign = '-' if params.get('order') == 'desc' else '+'
-                    qs = qs.order_by(*[f'{order_sign}{p}' for p in order_params])
+                with_sign = oby[0] in {"+", "-"}
+                order_sign = oby[0] if with_sign else "+"
+                order_par = oby[1:] if with_sign else oby
+
+                if order_par in self._normal_allowed_ordering or \
+                        any(p.match(order_par) for p in self._regex_allowed_ordering):
+                    order_par = self._reverse_rename_fields.get(order_par, order_par)
+
+                order_by = f'{order_sign}{order_par}'
+                qs = qs.order_by(order_by)
+
         return qs
 
     def get_skip_and_limit(self, params=None):
