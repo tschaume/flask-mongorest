@@ -138,7 +138,8 @@ class Resource(object):
         view_method (see methods.py) so the resource can behave differently
         depending on the method.
         """
-        doc_fields = self.document._fields.keys()
+        doc_fields = list(self.document._fields.keys())
+
         if self.fields is None:
             self.fields = doc_fields
         self._related_resources = self.get_related_resources()
