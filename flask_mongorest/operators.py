@@ -218,12 +218,3 @@ class Exists(Operator):
 
     def prepare_queryset_kwargs(self, field, value, negate):
         return {f"{field}__{self.op}": get_bool_value(value, negate)}
-
-
-# NOTE not including Size below (special for arrays)
-LONG_STRINGS = [Contains, IContains, Startswith, IStartswith, Endswith, IEndswith]
-STRINGS = [In, Exact, IExact, Ne] + LONG_STRINGS
-NUMBERS = [Lt, Lte, Gt, Gte, Range]
-DATES = [Before, After]
-OTHERS = [Boolean, Exists]
-ALL = STRINGS + NUMBERS + DATES + OTHERS
