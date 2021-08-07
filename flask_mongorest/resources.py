@@ -354,7 +354,9 @@ class Resource(object):
             for op in operators:
                 if op.op == 'exact':
                     field_filters[''] = op
-                field_filters[op.op] = op
+
+                fk = op.suf if hasattr(op, "suf") else op.op
+                field_filters[fk] = op
 
             if isinstance(field, Pattern):
                 regex_filters[field] = field_filters

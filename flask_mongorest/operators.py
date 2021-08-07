@@ -175,27 +175,29 @@ class Boolean(Operator):
     def prepare_queryset_kwargs(self, field, value, negate):
         return {field: get_bool_value(value, negate)}
 
-class Date(Operator):
-    suf = "on"
-    typ = "string"
+def date_prep(field, value, op):
+    try:
+        value = isoparse(value)
+    except ValueError as e:
+        raise ValidationError("Invalid date format - use ISO 8601")
+
+    return {f"{field}__{op}": value}
+
+class Before(Operator):
     fmt = "date-time"
-
-    def prepare_queryset_kwargs(self, field, value, negate):
-        try:
-            value = isoparse(value)
-        except ValueError as e:
-            raise ValidationError("Invalid date format - use ISO 8601")
-
-        field = '__'.join([field, self.op])
-        return {field: value}
-
-class Before(Date):
     suf = "before"
     op = "lt"
 
-class After(Date):
+    def prepare_queryset_kwargs(self, field, value, negate):
+        return date_prep(field, value, self.op)
+
+class After(Operator):
+    fmt = "date-time"
     suf = "after"
     op = "gt"
+
+    def prepare_queryset_kwargs(self, field, value, negate):
+        return date_prep(field, value, self.op)
 
 class Range(Operator):
     op = 'range'
@@ -222,6 +224,6 @@ class Exists(Operator):
 LONG_STRINGS = [Contains, IContains, Startswith, IStartswith, Endswith, IEndswith]
 STRINGS = [In, Exact, IExact, Ne] + LONG_STRINGS
 NUMBERS = [Lt, Lte, Gt, Gte, Range]
-DATES = [Date, Before, After]
+DATES = [Before, After]
 OTHERS = [Boolean, Exists]
 ALL = STRINGS + NUMBERS + DATES + OTHERS
