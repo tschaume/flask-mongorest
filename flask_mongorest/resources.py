@@ -924,7 +924,8 @@ class Resource(object):
                     order_par = self._reverse_rename_fields.get(order_par, order_par)
 
                 order_by = f"{order_sign}{order_par}"
-                qs = qs.order_by(order_by)
+                kwargs = {f"{order_par}__exists".replace(".", "__"): True}
+                qs = qs.filter(**kwargs).order_by(order_by)
 
         return qs
 
