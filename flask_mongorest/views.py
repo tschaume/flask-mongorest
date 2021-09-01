@@ -25,8 +25,6 @@ from flask_mongorest.exceptions import ValidationError
 from flask_mongorest.utils import MongoEncoder
 
 BUCKET = os.environ.get("S3_DOWNLOADS_BUCKET", "mongorest-downloads")
-CNAME = os.environ.get("PORTAL_CNAME")
-
 s3_client = boto3.client("s3")
 flask_mimerender = FlaskMimeRender(global_override_input_key="short_mime")
 register_mime("gz", ("application/gzip",))
@@ -269,8 +267,7 @@ class ResourceView(MethodView):
                 sha1 = hashlib.sha1(
                     json.dumps(dct, sort_keys=True).encode("utf-8")
                 ).hexdigest()
-                filename = f"{sha1}.{fmt}"
-                key = f"{CNAME}/{filename}" if CNAME else filename
+                key = f"{sha1}.{fmt}"
                 extra["s3"] = {"key": key, "update": False}
                 try:
                     s3_client_kwargs = dict(Bucket=BUCKET, Key=key)
@@ -285,7 +282,7 @@ class ResourceView(MethodView):
                         extra,
                         "200 OK",
                         {
-                            "Content-Disposition": f'attachment; filename="{filename}.{short_mime}"'
+                            "Content-Disposition": f'attachment; filename="{key}.{short_mime}"'
                         },
                     )
 
