@@ -351,7 +351,7 @@ class ResourceView(MethodView):
                 ret,
                 "200 OK",
                 {
-                    "Content-Disposition": f'attachment; filename="{filename}.{short_mime}"'
+                    "Content-Disposition": f'attachment; filename="{key}.{short_mime}"'
                 },
             )
         else:
