@@ -24,6 +24,7 @@ from flask_mongorest import methods
 from flask_mongorest.exceptions import ValidationError
 from flask_mongorest.utils import MongoEncoder
 
+TIMEOUT = 50 # in seconds
 BUCKET = os.environ.get("S3_DOWNLOADS_BUCKET", "mongorest-downloads")
 s3_client = boto3.client("s3")
 flask_mimerender = FlaskMimeRender(global_override_input_key="short_mime")
@@ -373,17 +374,18 @@ class ResourceView(MethodView):
                 raise ValidationError(f"Can only create {limit} documents at once")
             raw_data_deque = deque(raw_data)
             self._resource.view_method = methods.BulkCreate
-            data = []
+            data, count = [], 0
             tic = time.perf_counter()
             while len(raw_data_deque):
                 self._resource._raw_data = raw_data_deque.popleft()
                 data.append(self.create_object(skip_post_save=bool(raw_data_deque)))
+                count += 1
                 dt = time.perf_counter() - tic
-                if dt > 50:
+                avg = dt / count
+                if dt + avg > TIMEOUT:
                     break
 
-            count = len(data)
-            msg = f"Created {count} objects in {dt:0.1f}s ({count/dt:0.3f}/s)."
+            msg = f"Created {count} objects in {dt:0.1f}s ({avg:0.1f}s per entry)."
             print(msg)
             ret = {"data": data, "count": count}
             if raw_data_deque:
@@ -436,13 +438,14 @@ class ResourceView(MethodView):
                 self.process_object(obj)
                 count += 1
                 dt = time.perf_counter() - tic
-                if dt > 50:
+                avg = dt / count
+                if dt + avg > TIMEOUT:
                     break
         except ValidationError as e:
             e.args[0]["count"] = count
             raise e
         else:
-            msg = f"Updated {count} objects in {dt:0.1f}s ({count/dt:0.3f}/s)."
+            msg = f"Updated {count} objects in {dt:0.1f}s ({avg:0.1f}s per entry)."
             print(msg)
             ret = {"count": count}
             remain = nobjs - count
@@ -515,13 +518,14 @@ class ResourceView(MethodView):
                 self.delete_object(obj, skip_post_delete=skip)
                 count += 1
                 dt = time.perf_counter() - tic
-                if dt > 50:
+                avg = dt / count
+                if dt + avg > TIMEOUT:
                     break
         except ValidationError as e:
             e.args[0]["count"] = count
             raise e
         else:
-            msg = f"Deleted {count} objects in {dt:0.1f}s ({count/dt:0.3f}/s)."
+            msg = f"Deleted {count} objects in {dt:0.1f}s ({avg:0.1f}s per entry)."
             print(msg)
             ret = {"count": count}
             remain = nobjs - count
