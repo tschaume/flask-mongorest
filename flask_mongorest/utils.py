@@ -18,21 +18,27 @@ def isint(int_str):
     except (TypeError, ValueError):
         return False
 
+def encode_default(value):
+    if isinstance(value, ObjectId):
+        return str(value)
+    elif isinstance(value, DBRef):
+        return value.id
+    elif isinstance(value, datetime.datetime):
+        return value.isoformat()
+    elif isinstance(value, datetime.date):
+        return value.strftime("%Y-%m-%d")
+    elif isinstance(value, decimal.Decimal):
+        return str(value)
+    elif isinstance(value, Decimal128):
+        return str(value.to_decimal())
+
+    return value
 
 class MongoEncoder(json.JSONEncoder):
     def default(self, value, **kwargs):
-        if isinstance(value, ObjectId):
-            return str(value)
-        elif isinstance(value, DBRef):
-            return value.id
-        elif isinstance(value, datetime.datetime):
-            return value.isoformat()
-        elif isinstance(value, datetime.date):
-            return value.strftime("%Y-%m-%d")
-        elif isinstance(value, decimal.Decimal):
-            return str(value)
-        elif isinstance(value, Decimal128):
-            return str(value.to_decimal())
+        val = encode_default(value)
+        if isinstance(val, str):
+            return val
 
         return super(MongoEncoder, self).default(value, **kwargs)
 

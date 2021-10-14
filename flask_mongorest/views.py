@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import hashlib
-import json
+import ujson
 import os
 import sys
 import time
@@ -22,9 +22,9 @@ from werkzeug.exceptions import NotFound, Unauthorized
 
 from flask_mongorest import methods
 from flask_mongorest.exceptions import ValidationError
-from flask_mongorest.utils import MongoEncoder
+from flask_mongorest.utils import MongoEncoder, encode_default
 
-TIMEOUT = 50 # in seconds
+TIMEOUT = 55 # in seconds
 BUCKET = os.environ.get("S3_DOWNLOADS_BUCKET", "mongorest-downloads")
 s3_client = boto3.client("s3")
 flask_mimerender = FlaskMimeRender(global_override_input_key="short_mime")
@@ -32,11 +32,11 @@ register_mime("gz", ("application/gzip",))
 
 
 def render_json(**payload):
-    return json.dumps(payload, allow_nan=True, cls=MongoEncoder)
+    return ujson.dumps(payload, allow_nan=True, default=encode_default)
 
 
 def render_html(**payload):
-    d = json.dumps(payload, cls=MongoEncoder, sort_keys=True, indent=4)
+    d = ujson.dumps(payload, default=encode_default, sort_keys=True, indent=4)
     return render_template("mongorest/debug.html", data=d)
 
 
@@ -65,7 +65,7 @@ def render_gz(**payload):
 
         if fmt == "json":
             content_type = "application/json"
-            contents = json.dumps(payload["data"], allow_nan=True, cls=MongoEncoder)
+            contents = ujson.dumps(payload["data"], allow_nan=True, default=encode_default)
         else:
             from pandas import DataFrame, json_normalize
 
@@ -266,7 +266,7 @@ class ResourceView(MethodView):
 
                 dct = {"ids": primary_keys, "params": self._resource.params}
                 sha1 = hashlib.sha1(
-                    json.dumps(dct, sort_keys=True).encode("utf-8")
+                    ujson.dumps(dct, sort_keys=True).encode("utf-8")
                 ).hexdigest()
                 key = f"{sha1}.{fmt}"
                 extra["s3"] = {"key": key, "update": False}
@@ -374,20 +374,25 @@ class ResourceView(MethodView):
                 raise ValidationError(f"Can only create {limit} documents at once")
             raw_data_deque = deque(raw_data)
             self._resource.view_method = methods.BulkCreate
-            data, count = [], 0
+            count = 0
             tic = time.perf_counter()
             while len(raw_data_deque):
                 self._resource._raw_data = raw_data_deque.popleft()
-                data.append(self.create_object(skip_post_save=bool(raw_data_deque)))
+                skip = bool(raw_data_deque)
+                kwargs = {"skip_post_save": skip}
+                if not skip:
+                    kwargs["remaining_time"] = TIMEOUT - (time.perf_counter() - tic)
+
+                self.create_object(**kwargs)
                 count += 1
                 dt = time.perf_counter() - tic
                 avg = dt / count
                 if dt + avg > TIMEOUT:
                     break
 
-            msg = f"Created {count} objects in {dt:0.1f}s ({avg:0.1f}s per entry)."
+            msg = f"Created {count} objects in {dt:0.1f}s ({avg:0.1f}s per object)."
             print(msg)
-            ret = {"data": data, "count": count}
+            ret = {"count": count}
             if raw_data_deque:
                 remain = len(raw_data_deque)
                 msg += f" Remaining {remain} objects skipped to avoid Server Timeout."
@@ -396,7 +401,7 @@ class ResourceView(MethodView):
         else:
             raise ValidationError("wrong payload type")
 
-    def create_object(self, skip_post_save=False):
+    def create_object(self, **kwargs):
         self._resource.validate_request()
         try:
             obj = self._resource.create_object(save=False)
@@ -407,9 +412,7 @@ class ResourceView(MethodView):
         if not self.has_add_permission(request, obj):
             raise Unauthorized
 
-        self._resource.save_object(
-            obj, force_insert=True, skip_post_save=skip_post_save
-        )
+        self._resource.save_object(obj, force_insert=True, **kwargs)
         ret = self._resource.serialize(obj, params=request.args)
         if self._resource.uri_prefix:
             return ret, "201 Created", {"Location": self._resource._url(str(obj.id))}
@@ -445,7 +448,7 @@ class ResourceView(MethodView):
             e.args[0]["count"] = count
             raise e
         else:
-            msg = f"Updated {count} objects in {dt:0.1f}s ({avg:0.1f}s per entry)."
+            msg = f"Updated {count} objects in {dt:0.1f}s ({avg:0.1f}s per object)."
             print(msg)
             ret = {"count": count}
             remain = nobjs - count
@@ -496,14 +499,14 @@ class ResourceView(MethodView):
             fields = ",".join(raw_data.keys())
             return self._resource.serialize(obj, params={"_fields": fields})
 
-    def delete_object(self, obj, skip_post_delete=False):
+    def delete_object(self, obj, **kwargs):
         """Delete an object"""
         # Check if we have permission to delete this object
         if not self.has_delete_permission(request, obj):
             raise Unauthorized
 
         try:
-            self._resource.delete_object(obj, skip_post_delete=skip_post_delete)
+            self._resource.delete_object(obj, **kwargs)
         except Exception as e:
             self.handle_validation_error(e)
 
@@ -512,10 +515,13 @@ class ResourceView(MethodView):
         tic = time.perf_counter()
         nobjs, count = len(objs), 0
         try:
-            # separately delete last object to send skip signal
             for iobj, obj in enumerate(objs):
                 skip = iobj < nobjs - 1
-                self.delete_object(obj, skip_post_delete=skip)
+                kwargs = {"skip_post_delete": skip}
+                if not skip:
+                    kwargs["remaining_time"] = TIMEOUT - (time.perf_counter() - tic)
+
+                self.delete_object(obj, **kwargs)
                 count += 1
                 dt = time.perf_counter() - tic
                 avg = dt / count
@@ -525,7 +531,7 @@ class ResourceView(MethodView):
             e.args[0]["count"] = count
             raise e
         else:
-            msg = f"Deleted {count} objects in {dt:0.1f}s ({avg:0.1f}s per entry)."
+            msg = f"Deleted {count} objects in {dt:0.1f}s ({avg:0.1f}s per object)."
             print(msg)
             ret = {"count": count}
             remain = nobjs - count

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import json
+import ujson
 from collections import defaultdict
 from math import isnan
 from typing import Pattern
@@ -219,10 +219,7 @@ class Resource(object):
                     raise ValidationError("Chunked Transfer-Encoding is not supported.")
 
                 try:
-                    self._raw_data = json.loads(
-                        request.data.decode("utf-8"),
-                        parse_constant=self._enforce_strict_json,
-                    )
+                    self._raw_data = ujson.loads(request.data.decode("utf-8"))
                     if request.method == "PUT":
                         self._raw_data = unflatten(self._raw_data)
                 except ValueError:
@@ -1089,7 +1086,10 @@ class Resource(object):
                             instance.save()
 
     def save_object(self, obj, **kwargs):
-        signal_kwargs = {"skip": kwargs.get("skip_post_save", False)}
+        signal_kwargs = {
+            "skip": kwargs.get("skip_post_save", False),
+            "remaining_time": kwargs.get("remaining_time")
+        }
         self.save_related_objects(obj, **kwargs)
         obj.save(signal_kwargs=signal_kwargs, **kwargs).reload()
         self._dirty_fields = None  # No longer dirty.
@@ -1189,8 +1189,12 @@ class Resource(object):
             self.save_object(obj)
         return obj
 
-    def delete_object(self, obj, parent_resources=None, skip_post_delete=False):
-        obj.delete(signal_kwargs={"skip": skip_post_delete})
+    def delete_object(self, obj, parent_resources=None, **kwargs):
+        signal_kwargs = {
+            "skip": kwargs.get("skip_post_delete", False),
+            "remaining_time": kwargs.get("remaining_time")
+        }
+        obj.delete(signal_kwargs=signal_kwargs)
 
 
 # Py2/3 compatible way to do metaclasses (or six.add_metaclass)
