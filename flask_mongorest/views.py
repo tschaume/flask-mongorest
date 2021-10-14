@@ -22,7 +22,7 @@ from werkzeug.exceptions import NotFound, Unauthorized
 
 from flask_mongorest import methods
 from flask_mongorest.exceptions import ValidationError
-from flask_mongorest.utils import MongoEncoder, encode_default
+from flask_mongorest.utils import encode_default
 
 TIMEOUT = 55 # in seconds
 BUCKET = os.environ.get("S3_DOWNLOADS_BUCKET", "mongorest-downloads")
