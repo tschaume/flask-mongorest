@@ -8,7 +8,9 @@ import mongoengine
 from bson.dbref import DBRef
 from fastnumbers import fast_int
 from flask import has_request_context, request, url_for
-from unflatten import unflatten
+from flatten_dict import unflatten, flatten
+from boltons.iterutils import remap, default_enter
+from mongoengine.base.datastructures import BaseDict
 
 try:
     from urllib.parse import urlparse
@@ -51,6 +53,13 @@ except ImportError:
 from flask_mongorest import methods
 from flask_mongorest.exceptions import UnknownFieldError, ValidationError
 from flask_mongorest.utils import equal, isbound, isint
+
+
+def enter(path, key, value):
+    if isinstance(value, BaseDict):
+        return dict(), value.items()
+
+    return default_enter(path, key, value)
 
 
 def get_with_list_index(o, k):
@@ -221,7 +230,7 @@ class Resource(object):
                 try:
                     self._raw_data = ujson.loads(request.data.decode("utf-8"))
                     if request.method == "PUT":
-                        self._raw_data = unflatten(self._raw_data)
+                        self._raw_data = unflatten(self._raw_data, splitter="dot")
                 except ValueError:
                     raise ValidationError("The request contains invalid JSON.")
                 if request.method == "PUT" and not isinstance(self._raw_data, dict):
@@ -1087,8 +1096,9 @@ class Resource(object):
 
     def save_object(self, obj, **kwargs):
         signal_kwargs = {
-            "skip": kwargs.get("skip_post_save", False),
-            "remaining_time": kwargs.get("remaining_time")
+            "skip": kwargs.pop("skip_post_save", False),
+            "remaining_time": kwargs.pop("remaining_time", None),
+            "dirty_fields": kwargs.pop("dirty_fields", None)
         }
         self.save_related_objects(obj, **kwargs)
         obj.save(signal_kwargs=signal_kwargs, **kwargs).reload()
@@ -1148,7 +1158,23 @@ class Resource(object):
                     else:
                         if obj[field] is None:
                             obj[field] = {}
-                        self.update_object(obj[field], data=value, save=False)
+
+                        pullout_key = getattr(field_instance, "pullout_key", None)
+
+                        def visit(path, key, val):
+                            if isinstance(val, dict) and pullout_key in val:
+                                return key, val[pullout_key]
+
+                            return True
+
+                        flat = flatten(remap(obj[field], visit=visit, enter=enter), reducer="dot")
+
+                        for k, v in flatten(value, reducer="dot").items():
+                            if k not in flat or str(v) != flat[k]:
+                                set_value(obj[field], k, v)
+                                self._dirty_fields.append(f"{field}.{k}")
+
+                        continue
                 elif (
                     field in self._related_resources
                     and isinstance(field_instance, ListField)
@@ -1186,13 +1212,14 @@ class Resource(object):
                 self._dirty_fields.append(field)
 
         if save:
-            self.save_object(obj)
+            self.save_object(obj, dirty_fields=self._dirty_fields)
+
         return obj
 
     def delete_object(self, obj, parent_resources=None, **kwargs):
         signal_kwargs = {
-            "skip": kwargs.get("skip_post_delete", False),
-            "remaining_time": kwargs.get("remaining_time")
+            "skip": kwargs.pop("skip_post_delete", False),
+            "remaining_time": kwargs.pop("remaining_time", None)
         }
         obj.delete(signal_kwargs=signal_kwargs)
 
