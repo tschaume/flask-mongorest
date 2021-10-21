@@ -1,6 +1,5 @@
 boto3>=1.18.11
 fastnumbers>=3.1.0
-fdict>=0.8.1
 Flask>=2.0.1
 flask-mongoengine>=1.0.0
 flask-sse>=1.0.0

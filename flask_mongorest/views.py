@@ -13,7 +13,6 @@ from urllib.parse import unquote
 import boto3
 import mongoengine
 from botocore.errorfactory import ClientError
-from fdict import fdict
 from flask import render_template, request
 from flask.views import MethodView
 from flask_sse import sse
@@ -495,9 +494,7 @@ class ResourceView(MethodView):
         else:
             obj = self._resource.get_object(pk)
             self.process_object(obj)
-            raw_data = fdict(self._resource.raw_data, delimiter=".")
-            fields = ",".join(raw_data.keys())
-            return self._resource.serialize(obj, params={"_fields": fields})
+            return {"count": 1}
 
     def delete_object(self, obj, **kwargs):
         """Delete an object"""
