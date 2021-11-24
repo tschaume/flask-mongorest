@@ -917,21 +917,26 @@ class Resource(object):
             params = self.params
 
         if self.allowed_ordering:
-            # NOTE only one sort parameter supported
-            oby = params.get("_sort")
-            if oby:
-                with_sign = oby[0] in {"+", "-"}
-                order_sign = oby[0] if with_sign else "+"
-                order_par = oby[1:] if with_sign else oby
+            obys = params.get("_sort", "").split(",")
 
-                if order_par in self._normal_allowed_ordering or any(
-                    p.match(order_par) for p in self._regex_allowed_ordering
-                ):
-                    order_par = self._reverse_rename_fields.get(order_par, order_par)
+            if obys and obys[0]:
+                order_bys = []
+                kwargs = {}
 
-                order_by = f"{order_sign}{order_par}"
-                kwargs = {f"{order_par}__exists".replace(".", "__"): True}
-                qs = qs.filter(**kwargs).order_by(order_by)
+                for oby in obys:
+                    with_sign = oby[0] in {"+", "-"}
+                    order_sign = oby[0] if with_sign else "+"
+                    order_par = oby[1:] if with_sign else oby
+
+                    if order_par in self._normal_allowed_ordering or any(
+                        p.match(order_par) for p in self._regex_allowed_ordering
+                    ):
+                        order_par = self._reverse_rename_fields.get(order_par, order_par)
+
+                    order_bys.append(f"{order_sign}{order_par}")
+                    kwargs[f"{order_par}__exists".replace(".", "__")] = True
+
+                qs = qs.filter(**kwargs).order_by(*order_bys)
 
         return qs
 
