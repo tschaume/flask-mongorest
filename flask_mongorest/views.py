@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import traceback
+import logging
 from collections import deque
 from gzip import GzipFile
 from io import BytesIO, StringIO
@@ -28,6 +29,7 @@ BUCKET = os.environ.get("S3_DOWNLOADS_BUCKET", "mongorest-downloads")
 s3_client = boto3.client("s3")
 flask_mimerender = FlaskMimeRender(global_override_input_key="short_mime")
 register_mime("gz", ("application/gzip",))
+logger = logging.getLogger(__name__)
 
 
 def render_json(**payload):
@@ -78,7 +80,7 @@ def render_gz(**payload):
                             obj["data"], columns=obj["columns"], index=obj["index"]
                         )
                     except Exception as ex:
-                        print(str(ex))
+                        logger.error(str(ex))
                         continue
 
                     if contents is None:
@@ -195,7 +197,7 @@ class ResourceView(MethodView):
             exc_type, exc_value, exc_tb = sys.exc_info()
             tb = traceback.format_exception(exc_type, exc_value, exc_tb)
             err = "".join(tb)
-            print(err)
+            logger.error(err)
             return {"error": err}, "500 Internal Server Error"
 
     def handle_validation_error(self, e):
@@ -306,7 +308,7 @@ class ResourceView(MethodView):
             channel = hashlib.sha1(url).hexdigest()
 
             if "s3" not in extra or extra["s3"]["update"]:
-                print(f"serializing {channel}...")
+                logger.debug(f"serializing {channel}...")
                 tic = time.perf_counter()
                 batch_size, total_count = 1000, extra["total_count"]
 
@@ -323,7 +325,7 @@ class ResourceView(MethodView):
                         nobjs = batch_size
                         if idx == total_count - 1:
                             nobjs = total_count - batch_size * int(idx / batch_size)
-                        print(
+                        logger.info(
                             f"#{idx} Took {toc - tic:0.4f}s to serialize {nobjs} objects."
                         )
                         if self._resource.view_method == methods.Download:
@@ -390,7 +392,7 @@ class ResourceView(MethodView):
                     break
 
             msg = f"Created {count} objects in {dt:0.1f}s ({avg:0.1f}s per object)."
-            print(msg)
+            logger.info(msg)
             ret = {"count": count}
             if raw_data_deque:
                 remain = len(raw_data_deque)
@@ -448,7 +450,7 @@ class ResourceView(MethodView):
             raise e
         else:
             msg = f"Updated {count} objects in {dt:0.1f}s ({avg:0.1f}s per object)."
-            print(msg)
+            logger.info(msg)
             ret = {"count": count}
             remain = nobjs - count
             if remain:
@@ -529,7 +531,7 @@ class ResourceView(MethodView):
             raise e
         else:
             msg = f"Deleted {count} objects in {dt:0.1f}s ({avg:0.1f}s per object)."
-            print(msg)
+            logger.info(msg)
             ret = {"count": count}
             remain = nobjs - count
             if remain:
