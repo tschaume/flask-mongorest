@@ -325,7 +325,7 @@ class ResourceView(MethodView):
                         nobjs = batch_size
                         if idx == total_count - 1:
                             nobjs = total_count - batch_size * int(idx / batch_size)
-                        logger.info(
+                        logger.debug(
                             f"#{idx} Took {toc - tic:0.4f}s to serialize {nobjs} objects."
                         )
                         if self._resource.view_method == methods.Download:
@@ -392,7 +392,7 @@ class ResourceView(MethodView):
                     break
 
             msg = f"Created {count} objects in {dt:0.1f}s ({avg:0.1f}s per object)."
-            logger.info(msg)
+            logger.debug(msg)
             ret = {"count": count}
             if raw_data_deque:
                 remain = len(raw_data_deque)
@@ -450,7 +450,7 @@ class ResourceView(MethodView):
             raise e
         else:
             msg = f"Updated {count} objects in {dt:0.1f}s ({avg:0.1f}s per object)."
-            logger.info(msg)
+            logger.debug(msg)
             ret = {"count": count}
             remain = nobjs - count
             if remain:
@@ -531,7 +531,7 @@ class ResourceView(MethodView):
             raise e
         else:
             msg = f"Deleted {count} objects in {dt:0.1f}s ({avg:0.1f}s per object)."
-            logger.info(msg)
+            logger.debug(msg)
             ret = {"count": count}
             remain = nobjs - count
             if remain:
