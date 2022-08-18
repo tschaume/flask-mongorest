@@ -21,6 +21,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install setuptools setuptools_scm wheel
+        pip install flask-mongoengine @ git+https://github.com/MongoEngine/flask-mongoengine#egg=flask_mongoengine-2.0.0
 
     - name: Build packages
       run: python setup.py sdist bdist_wheel
