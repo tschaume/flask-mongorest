@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import ujson
+import orjson
 from collections import defaultdict
 from math import isnan
 from typing import Pattern
@@ -228,7 +228,7 @@ class Resource(object):
                     raise ValidationError("Chunked Transfer-Encoding is not supported.")
 
                 try:
-                    self._raw_data = ujson.loads(request.data.decode("utf-8"))
+                    self._raw_data = orjson.loads(request.data.decode("utf-8"))
                     if request.method == "PUT":
                         self._raw_data = unflatten(self._raw_data, splitter="dot")
                 except ValueError:
