@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import hashlib
-import ujson
+import orjson
 import os
 import sys
 import time
@@ -33,11 +33,13 @@ logger = logging.getLogger(__name__)
 
 
 def render_json(**payload):
-    return ujson.dumps(payload, allow_nan=True, default=encode_default)
+    return orjson.dumps(payload, default=encode_default)
 
 
 def render_html(**payload):
-    d = ujson.dumps(payload, default=encode_default, sort_keys=True, indent=4)
+    d = orjson.dumps(
+        payload, default=encode_default, option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS
+    )
     return render_template("mongorest/debug.html", data=d)
 
 
@@ -66,7 +68,7 @@ def render_gz(**payload):
 
         if fmt == "json":
             content_type = "application/json"
-            contents = ujson.dumps(payload["data"], allow_nan=True, default=encode_default)
+            contents = orjson.dumps(payload["data"], default=encode_default)
         else:
             from pandas import DataFrame, json_normalize
 
@@ -267,7 +269,7 @@ class ResourceView(MethodView):
 
                 dct = {"ids": primary_keys, "params": self._resource.params}
                 sha1 = hashlib.sha1(
-                    ujson.dumps(dct, sort_keys=True).encode("utf-8")
+                    orjson.dumps(dct, option=orjson.OPT_SORT_KEYS).encode("utf-8")
                 ).hexdigest()
                 key = f"{sha1}.{fmt}"
                 extra["s3"] = {"key": key, "update": False}
