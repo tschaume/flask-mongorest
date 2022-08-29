@@ -2,6 +2,7 @@
 import datetime
 import decimal
 import json
+import math
 
 import mongoengine
 from bson.dbref import DBRef
@@ -31,6 +32,8 @@ def encode_default(value):
         return str(value)
     elif isinstance(value, Decimal128):
         return str(value.to_decimal())
+    elif math.isnan(value) or math.isinf(value):
+        return str(value)
 
     return value
 
