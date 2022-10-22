@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import os
-
 from setuptools import setup
 
 # Stops exit traceback on tests
@@ -9,10 +7,6 @@ try:
     import multiprocessing  # noqa
 except Exception:
     pass
-
-SETUP_PTH = os.path.dirname(os.path.abspath(__file__))
-with open(os.path.join(SETUP_PTH, "requirements.txt")) as f:
-    required = f.read().splitlines()
 
 setup(
     name="flask-mongorest-mpcontribs",
@@ -26,14 +20,30 @@ setup(
     maintainer_email="phuck@lbl.gov",
     description="Flask restful API framework for MongoDB/MongoEngine",
     long_description=__doc__,
-    packages=[
-        "flask_mongorest",
-    ],
+    packages=["flask_mongorest"],
     package_data={"flask_mongorest": ["templates/mongorest/*"]},
     test_suite="nose.collector",
     zip_safe=False,
     platforms="any",
-    install_requires=required,
+    install_requires=[
+        "boto3",
+        "fastnumbers",
+        "flask-mongoengine @ git+https://github.com/MongoEngine/flask-mongoengine#egg=flask_mongoengine-2.0.0",
+        "flask-sse>=1.0.0",
+        "flatten-dict",
+        "marshmallow-mongoengine>=0.31.0",
+        "mimerender-pr36>=0.0.2",
+        "pymongo>=3.12.0",
+        "python-dateutil",
+        "orjson",
+    ],
+    extras_require={
+        'dev': [
+            "flake8",
+            "pytest",
+            "pytest-cov"
+        ]
+    },
     classifiers=[
         "Development Status :: 4 - Beta",
         "Environment :: Web Environment",
