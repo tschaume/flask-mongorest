@@ -28,7 +28,7 @@ setup(
     install_requires=[
         "boto3",
         "fastnumbers",
-        "flask-mongoengine @ git+https://github.com/MongoEngine/flask-mongoengine#egg=flask_mongoengine-2.0.0",
+        "flask-mongoengine-tschaume",
         "flask-sse>=1.0.0",
         "flatten-dict",
         "marshmallow-mongoengine>=0.31.0",
