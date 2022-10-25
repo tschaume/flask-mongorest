@@ -22,9 +22,9 @@ fastnumbers==3.2.1
     # via flask-mongorest-mpcontribs (setup.py)
 flask==2.2.2
     # via
-    #   flask-mongoengine
+    #   flask-mongoengine-tschaume
     #   flask-sse
-flask-mongoengine @ git+https://github.com/MongoEngine/flask-mongoengine
+flask-mongoengine-tschaume==1.1.0
     # via flask-mongorest-mpcontribs (setup.py)
 flask-sse==1.0.0
     # via flask-mongorest-mpcontribs (setup.py)
@@ -52,7 +52,7 @@ mimerender-pr36==0.0.2
     # via flask-mongorest-mpcontribs (setup.py)
 mongoengine==0.24.2
     # via
-    #   flask-mongoengine
+    #   flask-mongoengine-tschaume
     #   marshmallow-mongoengine
 orjson==3.8.0
     # via flask-mongorest-mpcontribs (setup.py)
@@ -87,5 +87,5 @@ werkzeug==2.2.2
     # via flask
 wrapt==1.14.1
     # via deprecated
-zipp==3.9.0
+zipp==3.10.0
     # via importlib-metadata
