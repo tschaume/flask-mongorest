@@ -19,7 +19,8 @@ setup(
     maintainer="Patrick Huck",
     maintainer_email="phuck@lbl.gov",
     description="Flask restful API framework for MongoDB/MongoEngine",
-    long_description=__doc__,
+    long_description="Flask-MongoEngine is a Flask extension that provides integration with MongoEngine, WtfForms and FlaskDebugToolbar.",
+    long_description_content_type="text/x-rst",
     packages=["flask_mongorest"],
     package_data={"flask_mongorest": ["templates/mongorest/*"]},
     test_suite="nose.collector",
@@ -28,7 +29,7 @@ setup(
     install_requires=[
         "boto3",
         "fastnumbers",
-        "flask-mongoengine-tschaume",
+        "flask-mongoengine-tschaume>=1.1.0",
         "flask-sse>=1.0.0",
         "flatten-dict",
         "marshmallow-mongoengine>=0.31.0",
