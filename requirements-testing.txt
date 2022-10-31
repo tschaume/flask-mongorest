@@ -85,7 +85,7 @@ pymongo==4.3.2
     #   mongoengine
 pyparsing==3.0.9
     # via packaging
-pytest==7.1.3
+pytest==7.2.0
     # via
     #   flask-mongorest-mpcontribs (setup.py)
     #   pytest-cov
