@@ -81,7 +81,7 @@ six==1.16.0
     #   flask-sse
     #   flatten-dict
     #   python-dateutil
-urllib3==1.26.12
+urllib3==1.26.13
     # via botocore
 werkzeug==2.2.2
     # via flask
