@@ -44,7 +44,7 @@ markupsafe==2.1.1
     # via
     #   jinja2
     #   werkzeug
-marshmallow==3.18.0
+marshmallow==3.19.0
     # via marshmallow-mongoengine
 marshmallow-mongoengine==0.31.0
     # via flask-mongorest-mpcontribs (setup.py)
