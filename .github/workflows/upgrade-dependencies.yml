@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-          cache-dependency-path: '**/requirements/${{ matrix.os }}_py${{ matrix.python-version }}.txt'
+          cache-dependency-path: '**/setup.py'
       - name: Upgrade Python dependencies
         shell: bash
         run: |
@@ -61,7 +61,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-          cache-dependency-path: '**/requirements/ubuntu-latest_py${{ matrix.python-version }}.txt'
+          cache-dependency-path: '**/setup.py'
       - name: detect auto-upgrade-dependency branches
         id: changes
         run: echo "count=$(git branch -r | grep auto-dependency-upgrades- | wc -l | xargs)" >> $GITHUB_OUTPUT
