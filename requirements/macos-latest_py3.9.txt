@@ -30,7 +30,7 @@ flask-sse==1.0.0
     # via flask-mongorest-mpcontribs (setup.py)
 flatten-dict==0.4.2
     # via flask-mongorest-mpcontribs (setup.py)
-importlib-metadata==5.0.0
+importlib-metadata==5.1.0
     # via flask
 itsdangerous==2.1.2
     # via flask
