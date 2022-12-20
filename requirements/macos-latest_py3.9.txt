@@ -6,9 +6,9 @@
 #
 async-timeout==4.0.2
     # via redis
-boto3==1.26.22
+boto3==1.26.32
     # via flask-mongorest-mpcontribs (setup.py)
-botocore==1.29.22
+botocore==1.29.32
     # via
     #   boto3
     #   s3transfer
@@ -28,7 +28,7 @@ flask-sse==1.0.0
     # via flask-mongorest-mpcontribs (setup.py)
 flatten-dict==0.4.2
     # via flask-mongorest-mpcontribs (setup.py)
-importlib-metadata==5.1.0
+importlib-metadata==5.2.0
     # via flask
 itsdangerous==2.1.2
     # via flask
@@ -44,7 +44,7 @@ markupsafe==2.1.1
     #   werkzeug
 marshmallow==3.19.0
     # via marshmallow-mongoengine
-marshmallow-mongoengine==0.31.0
+marshmallow-mongoengine==0.31.1
     # via flask-mongorest-mpcontribs (setup.py)
 mimerender-pr36==0.0.2
     # via flask-mongorest-mpcontribs (setup.py)
@@ -54,14 +54,12 @@ mongoengine==0.24.2
     #   marshmallow-mongoengine
 orjson==3.8.3
     # via flask-mongorest-mpcontribs (setup.py)
-packaging==21.3
+packaging==22.0
     # via marshmallow
 pymongo==4.3.3
     # via
     #   flask-mongorest-mpcontribs (setup.py)
     #   mongoengine
-pyparsing==3.0.9
-    # via packaging
 python-dateutil==2.8.2
     # via
     #   botocore
