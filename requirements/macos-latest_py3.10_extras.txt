@@ -90,7 +90,7 @@ python-dateutil==2.8.2
     #   flask-mongorest-mpcontribs (setup.py)
 python-mimeparse==1.6.0
     # via mimerender-pr36
-redis==4.4.0
+redis==4.4.4
     # via flask-sse
 s3transfer==0.6.0
     # via boto3
