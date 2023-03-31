@@ -105,9 +105,7 @@ def render_gz(**payload):
             contents = contents.getvalue()
 
         with GzipFile(mode="wb", fileobj=gzip_buffer) as gzip_file:
-            gzip_file.write(
-                contents.encode("utf-8")
-            )  # need to give full contents to compression
+            gzip_file.write(contents)  # need to give full contents to compression
 
         body = gzip_buffer.getvalue()
         s3_client.put_object(
