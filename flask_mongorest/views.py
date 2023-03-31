@@ -269,7 +269,7 @@ class ResourceView(MethodView):
 
                 dct = {"ids": primary_keys, "params": self._resource.params}
                 sha1 = hashlib.sha1(
-                    orjson.dumps(dct, option=orjson.OPT_SORT_KEYS).encode("utf-8")
+                    orjson.dumps(dct, option=orjson.OPT_SORT_KEYS, default=encode_default)
                 ).hexdigest()
                 key = f"{sha1}.{fmt}"
                 extra["s3"] = {"key": key, "update": False}
