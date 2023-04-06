@@ -141,6 +141,9 @@ class Resource(object):
     # Must start and end with a "/"
     uri_prefix = None
 
+    # index and path for $search
+    search_index, search_path = None, None
+
     def __init__(self, view_method=None):
         """
         Initializes a resource. Optionally, a method class can be given to
@@ -1014,6 +1017,17 @@ class Resource(object):
         # get a new one out
         if qfilter:
             qs = qfilter(qs)
+
+        # apply aggregation pipeline
+        term = params.get("_search")
+        if term and self.search_index and self.search_path:
+            pipeline = [{
+                "$search": {
+                    "index": self.search_index,
+                    "text": {"path": self.search_path, "query": term}
+                }
+            ]
+            qs = qs.aggregate(pipeline)
 
         # set total count
         extra["total_count"] = qs.count()
