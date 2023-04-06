@@ -2,7 +2,7 @@
 import orjson
 from collections import defaultdict
 from math import isnan
-from typing import Pattern
+from re import Pattern
 
 import mongoengine
 from bson.dbref import DBRef
