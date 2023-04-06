@@ -1032,15 +1032,14 @@ class Resource(object):
         # set total count
         extra["total_count"] = qs.count()
 
-        # Apply pagination to the queryset (if no custom queryset provided)
+        # Apply pagination to the queryset
         bulk_methods = {methods.BulkUpdate, methods.BulkDelete}
         limit = None
         if self.view_method in bulk_methods:
             # limit the number of objects that can be bulk-updated at a time
             qs = qs.limit(self.bulk_update_limit)
             limit = self.bulk_update_limit
-        elif not custom_qs:
-            # no need to skip/limit if a custom `qs` was provided
+        else:
             skip, limit = self.get_skip_and_limit(params)
             qs = qs.skip(skip).limit(limit + 1)  # get one extra to determine has_more
             if self.view_method != methods.Download:
