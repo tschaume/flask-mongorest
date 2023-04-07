@@ -5,6 +5,7 @@ from math import isnan
 from re import Pattern
 
 import mongoengine
+from atlasq import AtlasQ, AtlasQuerySet
 from bson.dbref import DBRef
 from fastnumbers import fast_int
 from flask import has_request_context, request, url_for
@@ -140,9 +141,6 @@ class Resource(object):
 
     # Must start and end with a "/"
     uri_prefix = None
-
-    # index and path for $search
-    search_index, search_path = None, None
 
     def __init__(self, view_method=None):
         """
@@ -718,10 +716,18 @@ class Resource(object):
         matching documents.
         """
         document_fields = set(self.fields + self.get_optional_fields())
+        term = self.params.pop("_search", None)
 
         if request.method == "PUT":
             # make sure to get full documents for updates
             return self.document.objects.only(*document_fields)
+        elif request.method == "GET" and term:
+            qs = AtlasQ()
+            atlas_index = self.document.atlas.index
+            indexed_fields = atlas_index._indexed_fields
+            for field in indexed_fields.keys():
+                qs |= AtlasQ(**{field: term})
+            return self.document.atlas.filter(qs)
         else:
             requested_fields = self.get_requested_fields(params=self.params)
             requested_root_fields = {f.split(".", 1)[0] for f in requested_fields}
@@ -1010,24 +1016,14 @@ class Resource(object):
             qs = self.get_queryset()
 
         # Apply filters and ordering, based on the params supplied by the request
-        qs = self.apply_filters(qs, params)
-        qs = self.apply_ordering(qs, params)
+        if not isinstance(qs, AtlasQuerySet):
+            qs = self.apply_filters(qs, params)
+            qs = self.apply_ordering(qs, params)
 
         # If a queryset filter was provided, pass our current queryset in and
         # get a new one out
         if qfilter:
             qs = qfilter(qs)
-
-        # apply aggregation pipeline
-        term = params.get("_search")
-        if term and self.search_index and self.search_path:
-            pipeline = [{
-                "$search": {
-                    "index": self.search_index,
-                    "text": {"path": self.search_path, "query": term}
-                }
-            ]
-            qs = qs.aggregate(pipeline)
 
         # set total count
         extra["total_count"] = qs.count()
