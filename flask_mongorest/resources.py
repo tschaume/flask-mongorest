@@ -1027,7 +1027,7 @@ class Resource(object):
             if qfilter:
                 match = qfilter(match)
 
-            if match:
+            if match._query:
                 qs._aggrs.insert(1, {"$match": match._query})
         else:
             qs = self.apply_filters(qs, params)
