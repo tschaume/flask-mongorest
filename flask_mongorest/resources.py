@@ -724,7 +724,11 @@ class Resource(object):
         elif request.method == "GET" and term and \
             hasattr(self.document, "atlas_filter") and \
             callable(self.document.atlas_filter):
-            fltr = self.document.atlas_filter(term)
+            try:
+                fltr = self.document.atlas_filter(term)
+            except Exception as ex:
+                raise ValidationError(ex)
+
             if not fltr:
                 raise ValidationError(f"Couldn't get filter for {term}")
 
