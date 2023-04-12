@@ -1060,6 +1060,10 @@ class Resource(object):
         # https://github.com/MongoEngine/mongoengine/blob/96802599045432274481b4ed9fcc4fad4ce5f89b/mongoengine/dereference.py#L39-L40
         objs = [i for i in qs]
 
+        # sort Atlas Search results by score
+        if isinstance(qs, AtlasQuerySet):
+            objs = sorted(objs, key=lambda o: -qs._scores[o.pk])
+
         # Determine the value of has_more
         has_more = False
         if self.paginate:
