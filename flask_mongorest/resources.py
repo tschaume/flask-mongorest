@@ -1017,14 +1017,19 @@ class Resource(object):
             qs = self.get_queryset()
 
         # Apply filters and ordering, based on the params supplied by the request
-        if not isinstance(qs, AtlasQuerySet):
-            qs = self.apply_filters(qs, params)
-            qs = self.apply_ordering(qs, params)
+        # apply provided queryset if needed
+        if isinstance(qs, AtlasQuerySet):
+            match = self.apply_filters(self.document.objects, params)
+            if qfilter:
+                match = qfilter(match)
 
-        # If a queryset filter was provided, pass our current queryset in and
-        # get a new one out
-        if qfilter:
-            qs = qfilter(qs)
+            if match:
+                qs._aggrs.insert(1, {"$match": match._query})
+        else:
+            qs = self.apply_filters(qs, params)
+            qs = self.apply_ordering(qs, params)  # TODO respect ordering for Atlas Search?
+            if qfilter:
+                qs = qfilter(qs)
 
         # set total count
         extra["total_count"] = qs.count()
