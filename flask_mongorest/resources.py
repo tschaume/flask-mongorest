@@ -5,7 +5,7 @@ from math import isnan
 from re import Pattern
 
 import mongoengine
-from atlasq import AtlasQ, AtlasQuerySet
+from atlasq import AtlasQuerySet
 from bson.dbref import DBRef
 from fastnumbers import fast_int
 from flask import has_request_context, request, url_for
@@ -721,13 +721,14 @@ class Resource(object):
         if request.method == "PUT":
             # make sure to get full documents for updates
             return self.document.objects.only(*document_fields)
-        elif request.method == "GET" and term:
-            qs = AtlasQ()
-            atlas_index = self.document.atlas.index
-            indexed_fields = atlas_index._indexed_fields
-            for field in indexed_fields.keys():
-                qs |= AtlasQ(**{field: term})
-            return self.document.atlas.filter(qs)
+        elif request.method == "GET" and term and \
+            hasattr(self.document, "atlas_filter") and \
+            callable(self.document.atlas_filter):
+            fltr = self.document.atlas_filter(term)
+            if not fltr:
+                raise ValidationError(f"Couldn't get filter for {term}")
+
+            return self.document.atlas.filter(fltr)
         else:
             requested_fields = self.get_requested_fields(params=self.params)
             requested_root_fields = {f.split(".", 1)[0] for f in requested_fields}
