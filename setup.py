@@ -37,6 +37,7 @@ setup(
         "pymongo>=3.12.0",
         "python-dateutil",
         "orjson",
+        "atlasq-tschaume",
     ],
     extras_require={
         'dev': [

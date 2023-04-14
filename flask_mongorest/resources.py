@@ -2,9 +2,10 @@
 import orjson
 from collections import defaultdict
 from math import isnan
-from typing import Pattern
+from re import Pattern
 
 import mongoengine
+from atlasq import AtlasQuerySet
 from bson.dbref import DBRef
 from fastnumbers import fast_int
 from flask import has_request_context, request, url_for
@@ -715,10 +716,22 @@ class Resource(object):
         matching documents.
         """
         document_fields = set(self.fields + self.get_optional_fields())
+        term = self.params.pop("_search", None)
+        has_atlas = callable(getattr(self.document, "atlas_filter", None))
 
         if request.method == "PUT":
             # make sure to get full documents for updates
             return self.document.objects.only(*document_fields)
+        elif request.method == "GET" and term and has_atlas:
+            try:
+                fltr = self.document.atlas_filter(term)
+            except Exception as ex:
+                raise ValidationError(ex)
+
+            if not fltr:
+                raise ValidationError(f"Couldn't get filter for {term}")
+
+            return self.document.atlas.filter(fltr)
         else:
             requested_fields = self.get_requested_fields(params=self.params)
             requested_root_fields = {f.split(".", 1)[0] for f in requested_fields}
@@ -1001,32 +1014,35 @@ class Resource(object):
             if fmt not in self.download_formats:
                 raise ValueError(f"`format` must be one of {self.download_formats}")
 
-        custom_qs = True
         if qs is None:
-            custom_qs = False
             qs = self.get_queryset()
 
         # Apply filters and ordering, based on the params supplied by the request
-        qs = self.apply_filters(qs, params)
-        qs = self.apply_ordering(qs, params)
+        # apply provided queryset if needed
+        if isinstance(qs, AtlasQuerySet):
+            match = self.apply_filters(self.document.objects, params)
+            if qfilter:
+                match = qfilter(match)
 
-        # If a queryset filter was provided, pass our current queryset in and
-        # get a new one out
-        if qfilter:
-            qs = qfilter(qs)
+            if match._query:
+                qs._aggrs.insert(1, {"$match": match._query})
+        else:
+            qs = self.apply_filters(qs, params)
+            qs = self.apply_ordering(qs, params)  # TODO respect ordering for Atlas Search?
+            if qfilter:
+                qs = qfilter(qs)
 
         # set total count
         extra["total_count"] = qs.count()
 
-        # Apply pagination to the queryset (if no custom queryset provided)
+        # Apply pagination to the queryset
         bulk_methods = {methods.BulkUpdate, methods.BulkDelete}
         limit = None
         if self.view_method in bulk_methods:
             # limit the number of objects that can be bulk-updated at a time
             qs = qs.limit(self.bulk_update_limit)
             limit = self.bulk_update_limit
-        elif not custom_qs:
-            # no need to skip/limit if a custom `qs` was provided
+        else:
             skip, limit = self.get_skip_and_limit(params)
             qs = qs.skip(skip).limit(limit + 1)  # get one extra to determine has_more
             if self.view_method != methods.Download:
@@ -1044,6 +1060,10 @@ class Resource(object):
         # list(queryset) uses a count() query to determine length
         # https://github.com/MongoEngine/mongoengine/blob/96802599045432274481b4ed9fcc4fad4ce5f89b/mongoengine/dereference.py#L39-L40
         objs = [i for i in qs]
+
+        # sort Atlas Search results by score
+        if isinstance(qs, AtlasQuerySet):
+            objs = sorted(objs, key=lambda o: -qs._scores[o.pk])
 
         # Determine the value of has_more
         has_more = False
