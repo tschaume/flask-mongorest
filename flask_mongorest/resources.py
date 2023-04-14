@@ -717,13 +717,12 @@ class Resource(object):
         """
         document_fields = set(self.fields + self.get_optional_fields())
         term = self.params.pop("_search", None)
+        has_atlas = callable(getattr(self.document, "atlas_filter", None))
 
         if request.method == "PUT":
             # make sure to get full documents for updates
             return self.document.objects.only(*document_fields)
-        elif request.method == "GET" and term and \
-            hasattr(self.document, "atlas_filter") and \
-            callable(self.document.atlas_filter):
+        elif request.method == "GET" and term and has_atlas:
             try:
                 fltr = self.document.atlas_filter(term)
             except Exception as ex:
@@ -1015,9 +1014,7 @@ class Resource(object):
             if fmt not in self.download_formats:
                 raise ValueError(f"`format` must be one of {self.download_formats}")
 
-        custom_qs = True
         if qs is None:
-            custom_qs = False
             qs = self.get_queryset()
 
         # Apply filters and ordering, based on the params supplied by the request
