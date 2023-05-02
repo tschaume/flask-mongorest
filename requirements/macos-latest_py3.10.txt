@@ -24,7 +24,7 @@ dnspython==2.3.0
     # via pymongo
 fastnumbers==5.0.1
     # via flask-mongorest-mpcontribs (setup.py)
-flask==2.2.3
+flask==2.3.2
     # via
     #   flask-mongoengine-tschaume
     #   flask-sse

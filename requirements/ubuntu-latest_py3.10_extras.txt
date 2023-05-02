@@ -30,7 +30,7 @@ fastnumbers==5.0.1
     # via flask-mongorest-mpcontribs (setup.py)
 flake8==6.0.0
     # via flask-mongorest-mpcontribs (setup.py)
-flask==2.2.3
+flask==2.3.2
     # via
     #   flask-mongoengine-tschaume
     #   flask-sse
