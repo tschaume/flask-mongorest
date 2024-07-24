@@ -4,27 +4,29 @@
 #
 #    pip-compile --output-file=requirements/macos-latest_py3.10.txt
 #
-async-timeout==4.0.2
+async-timeout==4.0.3
     # via redis
 atlasq-tschaume==0.11.1.dev2
     # via flask-mongorest-mpcontribs (setup.py)
-boto3==1.26.114
+blinker==1.8.2
+    # via flask
+boto3==1.34.145
     # via flask-mongorest-mpcontribs (setup.py)
-botocore==1.29.114
+botocore==1.34.145
     # via
     #   boto3
     #   s3transfer
-certifi==2022.12.7
+certifi==2024.7.4
     # via requests
-charset-normalizer==3.1.0
+charset-normalizer==3.3.2
     # via requests
-click==8.1.3
+click==8.1.7
     # via flask
-dnspython==2.3.0
+dnspython==2.6.1
     # via pymongo
-fastnumbers==5.0.1
+fastnumbers==5.1.0
     # via flask-mongorest-mpcontribs (setup.py)
-flask==2.2.3
+flask==3.0.3
     # via
     #   flask-mongoengine-tschaume
     #   flask-sse
@@ -34,59 +36,59 @@ flask-sse==1.0.0
     # via flask-mongorest-mpcontribs (setup.py)
 flatten-dict==0.4.2
     # via flask-mongorest-mpcontribs (setup.py)
-idna==3.4
+idna==3.7
     # via requests
-itsdangerous==2.1.2
+itsdangerous==2.2.0
     # via flask
-jinja2==3.1.2
+jinja2==3.1.4
     # via flask
 jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-markupsafe==2.1.2
+markupsafe==2.1.5
     # via
     #   jinja2
     #   werkzeug
-marshmallow==3.19.0
+marshmallow==3.21.3
     # via marshmallow-mongoengine
 marshmallow-mongoengine==0.31.2
     # via flask-mongorest-mpcontribs (setup.py)
 mimerender-pr36==0.0.2
     # via flask-mongorest-mpcontribs (setup.py)
-mongoengine==0.27.0
+mongoengine==0.28.2
     # via
     #   atlasq-tschaume
     #   flask-mongoengine-tschaume
     #   marshmallow-mongoengine
-orjson==3.8.10
+orjson==3.10.6
     # via flask-mongorest-mpcontribs (setup.py)
-packaging==23.1
+packaging==24.1
     # via marshmallow
-pymongo==4.3.3
+pymongo==4.8.0
     # via
     #   flask-mongorest-mpcontribs (setup.py)
     #   mongoengine
-python-dateutil==2.8.2
+python-dateutil==2.9.0.post0
     # via
     #   botocore
     #   flask-mongorest-mpcontribs (setup.py)
 python-mimeparse==1.6.0
     # via mimerender-pr36
-redis==4.5.4
+redis==5.0.7
     # via flask-sse
-requests==2.28.2
+requests==2.32.3
     # via atlasq-tschaume
-s3transfer==0.6.0
+s3transfer==0.10.2
     # via boto3
 six==1.16.0
     # via
     #   flask-sse
     #   flatten-dict
     #   python-dateutil
-urllib3==1.26.15
+urllib3==2.2.2
     # via
     #   botocore
     #   requests
-werkzeug==2.2.3
+werkzeug==3.0.3
     # via flask
