@@ -10,9 +10,9 @@ atlasq-tschaume==0.11.1.dev2
     # via flask-mongorest-mpcontribs (setup.py)
 blinker==1.8.2
     # via flask
-boto3==1.34.145
+boto3==1.34.153
     # via flask-mongorest-mpcontribs (setup.py)
-botocore==1.34.145
+botocore==1.34.153
     # via
     #   boto3
     #   s3transfer
@@ -22,7 +22,7 @@ charset-normalizer==3.3.2
     # via requests
 click==8.1.7
     # via flask
-coverage[toml]==7.6.0
+coverage[toml]==7.6.1
     # via pytest-cov
 dnspython==2.6.1
     # via pymongo
@@ -30,7 +30,7 @@ exceptiongroup==1.2.2
     # via pytest
 fastnumbers==5.1.0
     # via flask-mongorest-mpcontribs (setup.py)
-flake8==7.1.0
+flake8==7.1.1
     # via flask-mongorest-mpcontribs (setup.py)
 flask==3.0.3
     # via
@@ -79,7 +79,7 @@ packaging==24.1
     #   pytest
 pluggy==1.5.0
     # via pytest
-pycodestyle==2.12.0
+pycodestyle==2.12.1
     # via flake8
 pyflakes==3.2.0
     # via flake8
@@ -87,7 +87,7 @@ pymongo==4.8.0
     # via
     #   flask-mongorest-mpcontribs (setup.py)
     #   mongoengine
-pytest==8.3.1
+pytest==8.3.2
     # via
     #   flask-mongorest-mpcontribs (setup.py)
     #   pytest-cov
@@ -99,7 +99,7 @@ python-dateutil==2.9.0.post0
     #   flask-mongorest-mpcontribs (setup.py)
 python-mimeparse==1.6.0
     # via mimerender-pr36
-redis==5.0.7
+redis==5.0.8
     # via flask-sse
 requests==2.32.3
     # via atlasq-tschaume
