@@ -933,7 +933,9 @@ class Resource(object):
                     if order_par in self._normal_allowed_ordering or any(
                         p.match(order_par) for p in self._regex_allowed_ordering
                     ):
-                        order_par = self._reverse_rename_fields.get(order_par, order_par)
+                        order_par = self._reverse_rename_fields.get(
+                            order_par, order_par
+                        )
 
                     order_bys.append(f"{order_sign}{order_par}")
                     kwargs[f"{order_par}__exists".replace(".", "__")] = True
@@ -1143,7 +1145,7 @@ class Resource(object):
         signal_kwargs = {
             "skip": kwargs.pop("skip_post_save", False),
             "remaining_time": kwargs.pop("remaining_time", None),
-            "dirty_fields": kwargs.pop("dirty_fields", None)
+            "dirty_fields": kwargs.pop("dirty_fields", None),
         }
         self.save_related_objects(obj, **kwargs)
         obj.save(signal_kwargs=signal_kwargs, **kwargs).reload()
@@ -1212,7 +1214,9 @@ class Resource(object):
 
                             return True
 
-                        flat = flatten(remap(obj[field], visit=visit, enter=enter), reducer="dot")
+                        flat = flatten(
+                            remap(obj[field], visit=visit, enter=enter), reducer="dot"
+                        )
 
                         for k, v in flatten(value, reducer="dot").items():
                             if k not in flat or str(v) != flat[k]:
@@ -1264,7 +1268,7 @@ class Resource(object):
     def delete_object(self, obj, parent_resources=None, **kwargs):
         signal_kwargs = {
             "skip": kwargs.pop("skip_post_delete", False),
-            "remaining_time": kwargs.pop("remaining_time", None)
+            "remaining_time": kwargs.pop("remaining_time", None),
         }
         obj.delete(signal_kwargs=signal_kwargs)
 
