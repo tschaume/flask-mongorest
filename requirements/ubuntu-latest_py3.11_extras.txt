@@ -8,23 +8,23 @@ atlasq-tschaume==0.11.1.dev2
     # via flask-mongorest-mpcontribs (setup.py)
 blinker==1.9.0
     # via flask
-boto3==1.35.63
+boto3==1.35.81
     # via flask-mongorest-mpcontribs (setup.py)
-botocore==1.35.63
+botocore==1.35.81
     # via
     #   boto3
     #   s3transfer
-certifi==2024.8.30
+certifi==2024.12.14
     # via requests
 charset-normalizer==3.4.0
     # via requests
 click==8.1.7
     # via flask
-coverage[toml]==7.6.7
+coverage[toml]==7.6.9
     # via pytest-cov
 dnspython==2.7.0
     # via pymongo
-fastnumbers==5.1.0
+fastnumbers==5.1.1
     # via flask-mongorest-mpcontribs (setup.py)
 flake8==7.1.1
     # via flask-mongorest-mpcontribs (setup.py)
@@ -67,7 +67,7 @@ mongoengine==0.29.1
     #   atlasq-tschaume
     #   flask-mongoengine-tschaume
     #   marshmallow-mongoengine
-orjson==3.10.11
+orjson==3.10.12
     # via flask-mongorest-mpcontribs (setup.py)
 packaging==24.2
     # via
@@ -83,7 +83,7 @@ pymongo==4.10.1
     # via
     #   flask-mongorest-mpcontribs (setup.py)
     #   mongoengine
-pytest==8.3.3
+pytest==8.3.4
     # via
     #   flask-mongorest-mpcontribs (setup.py)
     #   pytest-cov
@@ -95,13 +95,13 @@ python-dateutil==2.9.0.post0
     #   flask-mongorest-mpcontribs (setup.py)
 python-mimeparse==2.0.0
     # via mimerender-pr36
-redis==5.2.0
+redis==5.2.1
     # via flask-sse
 requests==2.32.3
     # via atlasq-tschaume
-s3transfer==0.10.3
+s3transfer==0.10.4
     # via boto3
-six==1.16.0
+six==1.17.0
     # via
     #   flask-sse
     #   flatten-dict
