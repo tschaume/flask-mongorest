@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 import orjson
+import copy
 from collections import defaultdict
 from math import isnan
 from re import Pattern
 
 import mongoengine
-from atlasq import AtlasQuerySet
 from bson.dbref import DBRef
 from fastnumbers import fast_int
 from flask import has_request_context, request, url_for
 from flatten_dict import unflatten, flatten
 from boltons.iterutils import remap, default_enter
 from mongoengine.base.datastructures import BaseDict
+from mongoengine.queryset.visitor import Q
 
 try:
     from urllib.parse import urlparse
@@ -716,22 +717,10 @@ class Resource(object):
         matching documents.
         """
         document_fields = set(self.fields + self.get_optional_fields())
-        term = self.params.pop("_search", None)
-        has_atlas = callable(getattr(self.document, "atlas_filter", None))
 
         if request.method == "PUT":
             # make sure to get full documents for updates
             return self.document.objects.only(*document_fields)
-        elif request.method == "GET" and term and has_atlas:
-            try:
-                fltr = self.document.atlas_filter(term)
-            except Exception as ex:
-                raise ValidationError(ex)
-
-            if not fltr:
-                raise ValidationError(f"Couldn't get filter for {term}")
-
-            return self.document.atlas.filter(fltr)
         else:
             requested_fields = self.get_requested_fields(params=self.params)
             requested_root_fields = {f.split(".", 1)[0] for f in requested_fields}
@@ -944,7 +933,9 @@ class Resource(object):
                     if order_par in self._normal_allowed_ordering or any(
                         p.match(order_par) for p in self._regex_allowed_ordering
                     ):
-                        order_par = self._reverse_rename_fields.get(order_par, order_par)
+                        order_par = self._reverse_rename_fields.get(
+                            order_par, order_par
+                        )
 
                     order_bys.append(f"{order_sign}{order_par}")
                     kwargs[f"{order_par}__exists".replace(".", "__")] = True
@@ -996,46 +987,8 @@ class Resource(object):
         else:
             return 0, max_limit
 
-    def get_objects(self, qs=None, qfilter=None):
-        """
-        Return objects fetched from the database based on all the parameters
-        of the request that's currently being processed.
-
-        Params:
-        - Custom queryset can be passed via `qs`. Otherwise `self.get_queryset`
-          is used.
-        - Pass `qfilter` function to modify the queryset.
-        """
-        params = self.params
-        extra = {}
-
-        if self.view_method == methods.Download:
-            fmt = params.get("format")
-            if fmt not in self.download_formats:
-                raise ValueError(f"`format` must be one of {self.download_formats}")
-
-        if qs is None:
-            qs = self.get_queryset()
-
-        # Apply filters and ordering, based on the params supplied by the request
-        # apply provided queryset if needed
-        if isinstance(qs, AtlasQuerySet):
-            match = self.apply_filters(self.document.objects, params)
-            if qfilter:
-                match = qfilter(match)
-
-            if match._query:
-                qs._aggrs.insert(1, {"$match": match._query})
-        else:
-            qs = self.apply_filters(qs, params)
-            qs = self.apply_ordering(qs, params)  # TODO respect ordering for Atlas Search?
-            if qfilter:
-                qs = qfilter(qs)
-
-        # set total count
-        extra["total_count"] = qs.count()
-
-        # Apply pagination to the queryset
+    def apply_pagination(self, qs, params=None):
+        """Apply pagination to the queryset"""
         bulk_methods = {methods.BulkUpdate, methods.BulkDelete}
         limit = None
         if self.view_method in bulk_methods:
@@ -1047,23 +1000,85 @@ class Resource(object):
             qs = qs.skip(skip).limit(limit + 1)  # get one extra to determine has_more
             if self.view_method != methods.Download:
                 qs = self.apply_field_pagination(qs, params)
-            extra["total_pages"] = int(extra["total_count"] / limit) + bool(
-                extra["total_count"] % limit
-            )
 
+        return qs, limit
+
+    def _split_queryset(self, qs, qs_atlas=None):
+        indexed_fields = set(self.document.atlas.index._indexed_fields.keys())
+        if qs_atlas is None:
+            qs_atlas = self.document.atlas
+
+        if hasattr(qs._query_obj, "children"):
+            children = copy.deepcopy(qs._query_obj.children)
+        else:
+            children = [copy.deepcopy(qs._query_obj)]
+
+        qs._query_obj = Q()
+        for node in children:
+            for field, value in node.query.items():
+                kwarg = {field: value}
+                if field.split("__", 1)[0] in indexed_fields:
+                    qs_atlas = qs_atlas.filter(**kwarg)
+                else:
+                    qs = qs.filter(**kwarg)
+
+        return qs, qs_atlas
+
+    def get_objects(self, qs=None, qfilter=None):
+        """
+        Return objects fetched from the database based on all the parameters
+        of the request that's currently being processed.
+
+        Params:
+        - Custom queryset can be passed via `qs`. Otherwise `self.get_queryset`
+          is used.
+        - Pass `qfilter` function to modify the queryset.
+        """
+        params = self.params
+
+        if self.view_method == methods.Download:
+            fmt = params.get("format")
+            if fmt not in self.download_formats:
+                raise ValueError(f"`format` must be one of {self.download_formats}")
+
+        total = None
+        if qs is None:
+            qs = self.get_queryset()
+
+        # Apply filters and ordering, based on the params supplied by the request
+        # apply provided queryset if needed
+        qs = self.apply_filters(qs, params)
+        if hasattr(self.document, "atlas"):
+            # skip apply_ordering here
+            if qfilter:
+                qs = qfilter(qs)
+
+            # delegate to Atlas Search as much as possible
+            qs, qs_atlas = self._split_queryset(qs)
+            # insert $match stage for fields not covered by Atlas Search
+            # and run pipeline with $count stage before pagination
+            # TODO insert $lookup stage based on unindexed fields in params and mask
+            if qs._query:
+                qs_atlas._aggrs.insert(1, {"$match": qs._query})
+                total = qs_atlas.count()
+
+            qs = qs_atlas
+            # TODO test project-level search index
+            # TODO update indexes for MPContribsML
+        else:
+            qs = self.apply_ordering(qs, params)
+            if qfilter:
+                qs = qfilter(qs)
+
+            total = qs.count()
+
+        qs, limit = self.apply_pagination(qs, params)
         # Needs to be at the end as it returns a list, not a queryset
         if self.select_related:
             qs = qs.select_related()
 
         # Evaluate the queryset
-        # cheapest way to convert a queryset to a list: [i for i in qs]
-        # list(queryset) uses a count() query to determine length
-        # https://github.com/MongoEngine/mongoengine/blob/96802599045432274481b4ed9fcc4fad4ce5f89b/mongoengine/dereference.py#L39-L40
         objs = [i for i in qs]
-
-        # sort Atlas Search results by score
-        if isinstance(qs, AtlasQuerySet):
-            objs = sorted(objs, key=lambda o: -qs._scores[o.pk])
 
         # Determine the value of has_more
         has_more = False
@@ -1076,6 +1091,13 @@ class Resource(object):
         # bulk-fetch related resources for moar speed
         self.fetch_related_resources(objs, self.get_requested_fields(params=params))
 
+        if total is None:
+            total = objs[0]["meta"]["count"]["total"] if objs else 0
+
+        extra = {
+            "total_count": total,
+            "total_pages": int(total / limit) + bool(total % limit),
+        }
         return objs, has_more, extra
 
     def save_related_objects(self, obj, parent_resources=None, **kwargs):
@@ -1123,7 +1145,7 @@ class Resource(object):
         signal_kwargs = {
             "skip": kwargs.pop("skip_post_save", False),
             "remaining_time": kwargs.pop("remaining_time", None),
-            "dirty_fields": kwargs.pop("dirty_fields", None)
+            "dirty_fields": kwargs.pop("dirty_fields", None),
         }
         self.save_related_objects(obj, **kwargs)
         obj.save(signal_kwargs=signal_kwargs, **kwargs).reload()
@@ -1192,7 +1214,9 @@ class Resource(object):
 
                             return True
 
-                        flat = flatten(remap(obj[field], visit=visit, enter=enter), reducer="dot")
+                        flat = flatten(
+                            remap(obj[field], visit=visit, enter=enter), reducer="dot"
+                        )
 
                         for k, v in flatten(value, reducer="dot").items():
                             if k not in flat or str(v) != flat[k]:
@@ -1244,7 +1268,7 @@ class Resource(object):
     def delete_object(self, obj, parent_resources=None, **kwargs):
         signal_kwargs = {
             "skip": kwargs.pop("skip_post_delete", False),
-            "remaining_time": kwargs.pop("remaining_time", None)
+            "remaining_time": kwargs.pop("remaining_time", None),
         }
         obj.delete(signal_kwargs=signal_kwargs)
 
