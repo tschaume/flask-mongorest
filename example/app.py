@@ -69,8 +69,9 @@ class PostResource(Resource):
     bulk_update_limit = 10
 
     def get_objects(self, **kwargs):
-        qs, has_more = super(PostResource, self).get_objects(**kwargs)
-        return qs, has_more, {"more": "stuff"}
+        objs, has_more, extra = super(PostResource, self).get_objects(**kwargs)
+        extra["more"] = "stuff"
+        return objs, has_more, extra
 
     def get_fields(self):
         fields = super(PostResource, self).get_fields()
@@ -223,12 +224,12 @@ class A(db.Document):
 
 
 class B(db.Document):
-    ref = db.ReferenceField(A, dbref=True)
+    ref = db.ReferenceField(document_type=A, dbref=True)
     txt = db.StringField()
 
 
 class C(db.Document):
-    ref = db.ReferenceField(A)
+    ref = db.ReferenceField(document_type=A)
     txt = db.StringField()
 
 

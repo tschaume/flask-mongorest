@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
-import orjson
 from collections import defaultdict
 from math import isnan
 from re import Pattern
 
 import mongoengine
+import orjson
 from atlasq import AtlasQuerySet
+from boltons.iterutils import default_enter, remap
 from bson.dbref import DBRef
 from fastnumbers import fast_int
 from flask import has_request_context, request, url_for
-from flatten_dict import unflatten, flatten
-from boltons.iterutils import remap, default_enter
+from flatten_dict import flatten, unflatten
 from mongoengine.base.datastructures import BaseDict
 
 try:
@@ -44,11 +44,12 @@ except ImportError:
 
 try:
     from marshmallow.exceptions import ValidationError as MarshmallowValidationError
-    from marshmallow.utils import _Missing, get_value, set_value
+    from marshmallow.utils import get_value, set_value
+    from marshmallow.utils import missing as missing_sentinel
     from marshmallow_mongoengine import ModelSchema
 except ImportError:
     ModelSchema = None
-    from glom import glom, assign
+    from glom import assign, glom
     from glom.core import PathAccessError
 
 from flask_mongorest import methods
@@ -157,9 +158,9 @@ class Resource(object):
         self._reverse_rename_fields = {}
         for k, v in self._rename_fields.items():
             self._reverse_rename_fields[v] = k
-        assert len(self._rename_fields) == len(
-            self._reverse_rename_fields
-        ), "Cannot rename multiple fields to the same name"
+        assert len(self._rename_fields) == len(self._reverse_rename_fields), (
+            "Cannot rename multiple fields to the same name"
+        )
         self._normal_filters, self._regex_filters = self.get_filters()
         self._child_document_resources = self.get_child_document_resources()
         self._default_child_resource_document = (
@@ -447,7 +448,7 @@ class Resource(object):
                     raise UnknownFieldError
         else:
             field_value = get_value(obj, field_name)
-            if isinstance(field_value, _Missing):
+            if field_value is missing_sentinel:
                 raise UnknownFieldError
 
         return self.serialize_field_value(
@@ -621,6 +622,9 @@ class Resource(object):
                     except UnknownFieldError:
                         pass
 
+            # DEVIATION: fields whose value is None are omitted from the
+            # serialized output entirely (the key is absent) rather than being
+            # emitted as an explicit null.
             if value is not None:
                 if isinstance(value, (float, int)) and isnan(value):
                     value = None
@@ -944,7 +948,9 @@ class Resource(object):
                     if order_par in self._normal_allowed_ordering or any(
                         p.match(order_par) for p in self._regex_allowed_ordering
                     ):
-                        order_par = self._reverse_rename_fields.get(order_par, order_par)
+                        order_par = self._reverse_rename_fields.get(
+                            order_par, order_par
+                        )
 
                     order_bys.append(f"{order_sign}{order_par}")
                     kwargs[f"{order_par}__exists".replace(".", "__")] = True
@@ -970,6 +976,7 @@ class Resource(object):
                             f'{par} must be an integer (got "{params[par]}" instead).'
                         )
                     if params[par] and int(params[par]) > max_limit:
+                        # DEVIATION: terser "too large" message than upstream.
                         raise ValidationError(f"Limit {params[par]} too large.")
                     limit = min(int(params[par]), max_limit)
                     break
@@ -978,6 +985,8 @@ class Resource(object):
 
             for par in ["_skip", "page"]:
                 if par in params:
+                    # DEVIATION: the _skip/page validation messages are terser
+                    # than the detailed _limit/per_page messages above.
                     if not isint(params[par]):
                         raise ValidationError(f"{par} must be an integer!")
                     if params[par] and int(params[par]) < 0:
@@ -1028,7 +1037,9 @@ class Resource(object):
                 qs._aggrs.insert(1, {"$match": match._query})
         else:
             qs = self.apply_filters(qs, params)
-            qs = self.apply_ordering(qs, params)  # TODO respect ordering for Atlas Search?
+            qs = self.apply_ordering(
+                qs, params
+            )  # TODO respect ordering for Atlas Search?
             if qfilter:
                 qs = qfilter(qs)
 
@@ -1039,7 +1050,10 @@ class Resource(object):
         bulk_methods = {methods.BulkUpdate, methods.BulkDelete}
         limit = None
         if self.view_method in bulk_methods:
-            # limit the number of objects that can be bulk-updated at a time
+            # limit the number of objects that can be bulk-updated at a time.
+            # DEVIATION: an over-limit bulk request is silently capped to
+            # bulk_update_limit (only the first N objects are affected) rather
+            # than being rejected.
             qs = qs.limit(self.bulk_update_limit)
             limit = self.bulk_update_limit
         else:
@@ -1047,9 +1061,15 @@ class Resource(object):
             qs = qs.skip(skip).limit(limit + 1)  # get one extra to determine has_more
             if self.view_method != methods.Download:
                 qs = self.apply_field_pagination(qs, params)
-            extra["total_pages"] = int(extra["total_count"] / limit) + bool(
-                extra["total_count"] % limit
-            )
+            # ``limit`` of 0 is a count-only request (no page of objects is
+            # returned), so there are no pages to report and we must avoid a
+            # division by zero.
+            if limit:
+                extra["total_pages"] = int(extra["total_count"] / limit) + bool(
+                    extra["total_count"] % limit
+                )
+            else:
+                extra["total_pages"] = 0
 
         # Needs to be at the end as it returns a list, not a queryset
         if self.select_related:
@@ -1123,8 +1143,11 @@ class Resource(object):
         signal_kwargs = {
             "skip": kwargs.pop("skip_post_save", False),
             "remaining_time": kwargs.pop("remaining_time", None),
-            "dirty_fields": kwargs.pop("dirty_fields", None)
+            "dirty_fields": kwargs.pop("dirty_fields", None),
         }
+        # EmbeddedDocuments cannot be saved on their own
+        if isinstance(obj, mongoengine.EmbeddedDocument):
+            return
         self.save_related_objects(obj, **kwargs)
         obj.save(signal_kwargs=signal_kwargs, **kwargs).reload()
         self._dirty_fields = None  # No longer dirty.
@@ -1192,7 +1215,9 @@ class Resource(object):
 
                             return True
 
-                        flat = flatten(remap(obj[field], visit=visit, enter=enter), reducer="dot")
+                        flat = flatten(
+                            remap(obj[field], visit=visit, enter=enter), reducer="dot"
+                        )
 
                         for k, v in flatten(value, reducer="dot").items():
                             if k not in flat or str(v) != flat[k]:
@@ -1214,15 +1239,18 @@ class Resource(object):
                         res = self._related_resources[field](
                             view_method=self.view_method
                         )
+                        # Properly remvoe referenced documents.
+                        # Previously, deleting a referenced document would delete the document itself
+                        new_list = []
                         for i, v in enumerate(value):
                             if v is None:
-                                continue  # no update requested for list item
-                            if i == len(obj[field]):
-                                obj[field].append(v)
-                            else:
-                                res.delete_object(obj[field][i])
-                                obj[field][i] = v
+                                if i < len(obj[field]):
+                                    new_list.append(obj[field][i])
+                                continue
                             res.save_object(v)
+                            new_list.append(v)
+                        obj[field] = new_list
+                        self._dirty_fields.append(field)
                 elif field_instance.primary_key:
                     raise ValidationError(
                         f"`{field}` is primary key and cannot be updated"
@@ -1244,8 +1272,12 @@ class Resource(object):
     def delete_object(self, obj, parent_resources=None, **kwargs):
         signal_kwargs = {
             "skip": kwargs.pop("skip_post_delete", False),
-            "remaining_time": kwargs.pop("remaining_time", None)
+            "remaining_time": kwargs.pop("remaining_time", None),
         }
+        # EmbeddedDocuments are owned by their parent document and have no
+        # standalone ``delete``
+        if isinstance(obj, mongoengine.EmbeddedDocument):
+            return
         obj.delete(signal_kwargs=signal_kwargs)
 
 

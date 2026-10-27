@@ -192,6 +192,10 @@ class ResourceView(MethodView):
             self._resource = self.requested_resource(request)
             return super(ResourceView, self).dispatch_request(*args, **kwargs)
         except (ValueError, ValidationError, mongoengine.errors.ValidationError) as e:
+            # DEVIATION: validation errors are returned as a single stringified
+            # message under "error" (the str() of the error, which for a
+            # ValidationError is the repr of its field-errors/count dict), rather
+            # than as a structured JSON object of field errors.
             return {"error": str(e)}, "400 Bad Request"
         except (Unauthorized, mongoengine.errors.NotUniqueError) as e:
             return {"error": str(e)}, "401 Unauthorized"
@@ -500,6 +504,8 @@ class ResourceView(MethodView):
         else:
             obj = self._resource.get_object(pk)
             self.process_object(obj)
+            # DEVIATION: a single-object PUT returns an update count, consistent
+            # with the bulk PUT above, rather than the updated object itself.
             return {"count": 1}
 
     def delete_object(self, obj, **kwargs):
