@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 import hashlib
-import orjson
+import logging
 import os
 import sys
 import time
 import traceback
-import logging
 from collections import deque
 from gzip import GzipFile
 from io import BytesIO, StringIO
@@ -13,6 +12,7 @@ from urllib.parse import unquote
 
 import boto3
 import mongoengine
+import orjson
 from botocore.errorfactory import ClientError
 from flask import render_template, request
 from flask.views import MethodView
@@ -24,7 +24,7 @@ from flask_mongorest import methods
 from flask_mongorest.exceptions import ValidationError
 from flask_mongorest.utils import encode_default
 
-TIMEOUT = 55 # in seconds
+TIMEOUT = 55  # in seconds
 BUCKET = os.environ.get("S3_DOWNLOADS_BUCKET", "mongorest-downloads")
 s3_client = boto3.client("s3")
 flask_mimerender = FlaskMimeRender(global_override_input_key="short_mime")
@@ -38,7 +38,9 @@ def render_json(**payload):
 
 def render_html(**payload):
     d = orjson.dumps(
-        payload, default=encode_default, option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS
+        payload,
+        default=encode_default,
+        option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS,
     )
     return render_template("mongorest/debug.html", data=d)
 
@@ -105,7 +107,9 @@ def render_gz(**payload):
             contents = contents.getvalue()
 
         with GzipFile(mode="wb", fileobj=gzip_buffer) as gzip_file:
-            gzip_file.write(contents)  # need to give full contents to compression
+            gzip_file.write(
+                contents.encode() if isinstance(contents, str) else contents
+            )  # need to give full contents to compression
 
         body = gzip_buffer.getvalue()
         s3_client.put_object(
@@ -267,7 +271,9 @@ class ResourceView(MethodView):
 
                 dct = {"ids": primary_keys, "params": self._resource.params}
                 sha1 = hashlib.sha1(
-                    orjson.dumps(dct, option=orjson.OPT_SORT_KEYS, default=encode_default)
+                    orjson.dumps(
+                        dct, option=orjson.OPT_SORT_KEYS, default=encode_default
+                    )
                 ).hexdigest()
                 key = f"{sha1}.{fmt}"
                 extra["s3"] = {"key": key, "update": False}
@@ -352,9 +358,7 @@ class ResourceView(MethodView):
             return (
                 ret,
                 "200 OK",
-                {
-                    "Content-Disposition": f'attachment; filename="{key}.{short_mime}"'
-                },
+                {"Content-Disposition": f'attachment; filename="{key}.{short_mime}"'},
             )
         else:
             return ret
