@@ -8,7 +8,15 @@ import unittest
 from mongoengine.context_managers import query_counter
 from mongoengine.errors import ValidationError
 
-import example.app as example
+# The example app requires a MongoDB connection and the full dependency stack to
+# import. Guard it so the self-contained, DB-free test cases in this module (e.g.
+# RenderGzDownloadTestCase) can still be collected and run when the example app
+# is unavailable. The DB-backed test cases reference ``example`` only inside their
+# methods, so they will fail fast at run time if it could not be imported.
+try:
+    import example.app as example
+except Exception as _example_import_error:  # pragma: no cover - env-dependent
+    example = None
 
 SafeReferenceField = None
 
@@ -170,7 +178,7 @@ class MongoRestTestCase(unittest.TestCase):
         """
         Make sure unicode data payloads are properly decoded.
         """
-        self.user_1_obj["first_name"] = u"Jörg"
+        self.user_1_obj["first_name"] = "Jörg"
 
         # Don't encode unicode characters
         resp = self.app.put(
@@ -196,15 +204,15 @@ class MongoRestTestCase(unittest.TestCase):
             "/test/",
             data=json.dumps(
                 {
-                    "email": u"💩",
+                    "email": "💩",
                 }
             ),
         )
         response_error(resp)
         errors = resp_json(resp)
-        error1 = {"field-errors": {"email": u"Invalid email address: 💩"}}
+        error1 = {"field-errors": {"email": "Invalid email address: 💩"}}
         # https://github.com/MongoEngine/mongoengine/pull/1384
-        error2 = {"field-errors": {"email": u"Invalid Mail-address: 💩"}}
+        error2 = {"field-errors": {"email": "Invalid Mail-address: 💩"}}
         self.assertTrue(errors == error1 or errors == error2)
 
         # Schema validation error
@@ -220,7 +228,7 @@ class MongoRestTestCase(unittest.TestCase):
         response_error(resp)
         errors = resp_json(resp)
         self.assertEqual(
-            errors, {"errors": [], "field-errors": {"datetime": u"Invalid date 💩"}}
+            errors, {"errors": [], "field-errors": {"datetime": "Invalid date 💩"}}
         )
 
     def test_model_validation(self):
@@ -605,7 +613,8 @@ class MongoRestTestCase(unittest.TestCase):
         self.assertEqual(data_list[1]["description"], "Other description")
 
         resp = self.app.put(
-            "/posts/", data=json.dumps({"description": "X" * 121})  # too long
+            "/posts/",
+            data=json.dumps({"description": "X" * 121}),  # too long
         )
         response_error(resp)
         data = resp_json(resp)
@@ -1497,6 +1506,139 @@ class InternalTestCase(unittest.TestCase):
                     "a": "Invalid value",
                 }
             },
+        )
+
+
+class RenderGzDownloadTestCase(unittest.TestCase):
+    """Regression tests for the gzip table-download fix in ``render_gz``."""
+
+    def setUp(self):
+        import flask
+
+        self.app = flask.Flask(__name__)
+
+    def _render(self, fmt, cell):
+        """Call the real render_gz for a one-table payload.
+
+        Returns ``(body, s3_body, content_type)``.
+        """
+        import flask_mongorest.views as V
+
+        captured = {}
+
+        def fake_put_object(**kw):  # don't touch real S3
+            captured["Body"] = kw["Body"]
+            captured["ContentType"] = kw["ContentType"]
+
+        orig = V.s3_client.put_object
+        V.s3_client.put_object = fake_put_object
+        try:
+            payload = [
+                {
+                    "id": "abc",
+                    "name": "t",
+                    "md5": "x",
+                    "attrs": {},
+                    "data": [[cell, "2"], ["3", "4"]],
+                    "columns": ["a", "b"],
+                    "index": ["0", "1"],
+                }
+            ]
+            with self.app.test_request_context(f"/tables/download/gz?format={fmt}"):
+                body = V.render_gz(data=payload, s3={"update": True, "key": f"k.{fmt}"})
+        finally:
+            V.s3_client.put_object = orig
+        return body, captured["Body"], captured["ContentType"]
+
+    @staticmethod
+    def _table_block(csv_text):
+        """CSV output is ``<meta>\\n\\n<dataframe>``; parse the dataframe block."""
+        from io import StringIO
+
+        import pandas as pd
+
+        block = csv_text.split("\n\n")[-1].strip("\n")
+        return pd.read_csv(
+            StringIO(block), index_col=0, dtype=str, keep_default_na=False
+        )
+
+    def test_csv_download_with_empty_string_unzips(self):
+        """The exact regression: a '' cell must still yield a valid gzip."""
+        import gzip
+
+        body, s3_body, ct = self._render("csv", "")
+        self.assertEqual(ct, "text/csv")
+        self.assertEqual(
+            body, s3_body, "returned body differs from the object cached to S3"
+        )
+        self.assertEqual(body[:2], b"\x1f\x8b", "not a gzip stream (bad magic bytes)")
+        df = self._table_block(gzip.decompress(body).decode("utf-8"))  # the 'unzip'
+        self.assertEqual(list(df.columns), ["a", "b"])
+        self.assertEqual(df["a"].iloc[0], "", "empty cell not preserved")
+        self.assertEqual(df["a"].iloc[1], "3")
+
+    def test_csv_download_with_null_unzips(self):
+        """A null (None) cell must also yield a valid gzip; None -> empty field."""
+        import gzip
+
+        body, s3_body, ct = self._render("csv", None)
+        self.assertEqual(ct, "text/csv")
+        self.assertEqual(body, s3_body)
+        self.assertEqual(body[:2], b"\x1f\x8b", "not a gzip stream (bad magic bytes)")
+        df = self._table_block(gzip.decompress(body).decode("utf-8"))
+        self.assertEqual(list(df.columns), ["a", "b"])
+        self.assertEqual(df["a"].iloc[0], "", "null cell should render as empty field")
+        self.assertEqual(df["a"].iloc[1], "3")
+
+    def test_csv_download_without_null_unzips(self):
+        """Baseline: a normal table also round-trips."""
+        import gzip
+
+        body, s3_body, ct = self._render("csv", "1")
+        self.assertEqual(body, s3_body)
+        df = self._table_block(gzip.decompress(body).decode("utf-8"))
+        self.assertEqual(df["a"].iloc[0], "1")
+        self.assertEqual(df["b"].iloc[1], "4")
+
+    def test_json_download_with_empty_string_unzips(self):
+        """JSON path was never broken; confirm '' survives there too."""
+        import gzip
+
+        body, s3_body, ct = self._render("json", "")
+        self.assertEqual(ct, "application/json")
+        self.assertEqual(body, s3_body)
+        self.assertEqual(body[:2], b"\x1f\x8b")
+        data = json.loads(gzip.decompress(body).decode("utf-8"))
+        self.assertEqual(data[0]["data"][0][0], "", "empty cell not preserved in JSON")
+
+    def test_json_download_with_null_unzips(self):
+        """A null (None) cell is preserved as JSON null and still unzips."""
+        import gzip
+
+        body, s3_body, ct = self._render("json", None)
+        self.assertEqual(ct, "application/json")
+        self.assertEqual(body, s3_body)
+        self.assertEqual(body[:2], b"\x1f\x8b")
+        data = json.loads(gzip.decompress(body).decode("utf-8"))
+        self.assertIsNone(data[0]["data"][0][0], "null cell not preserved in JSON")
+
+    def test_unsupported_format_is_rejected(self):
+        """Only json/csv are supported; e.g. parquet must raise, not silently fail."""
+        with self.assertRaises(ValueError):
+            self._render("parquet", "")
+
+    def test_patched_source_is_loaded(self):
+        """Guard that the running module actually contains the byte-encode fix."""
+        import inspect
+
+        import flask_mongorest.views as V
+
+        src = inspect.getsource(V.render_gz)
+        self.assertIn(
+            "isinstance(contents, str)",
+            src,
+            "render_gz does not contain the str->bytes fix; wrong version is "
+            f"installed (loaded from {V.__file__})",
         )
 
 
