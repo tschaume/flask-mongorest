@@ -8,19 +8,19 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     strategy:
-        max-parallel: 6
+      max-parallel: 6
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-python@v4
-      with:
-        python-version: 3.9
-    - name: Install dependencies
-      run: python3 -m pip install --upgrade pip build
-    - name: Build packages
-      run: python3 -m build
-    - name: Publish package
-      uses: pypa/gh-action-pypi-publish@release/v1.5
-      with:
-        user: __token__
-        password: ${{ secrets.PYPI_TOKEN }}
-        packages_dir: ./dist/
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: 3.9
+      - name: Install dependencies
+        run: python3 -m pip install --upgrade pip build
+      - name: Build packages
+        run: python3 -m build
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_TOKEN }}
+          packages-dir: ./dist/
