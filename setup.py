@@ -27,6 +27,7 @@ setup(
     zip_safe=False,
     platforms="any",
     install_requires=[
+        "boltons",
         "boto3",
         "fastnumbers",
         "flask-mongoengine-tschaume>=1.1.0",
@@ -34,6 +35,7 @@ setup(
         "flatten-dict",
         "marshmallow-mongoengine>=0.31.0",
         "mimerender-pr36>=0.0.2",
+        "pandas",
         "pymongo>=3.12.0",
         "python-dateutil",
         "orjson",
@@ -41,6 +43,7 @@ setup(
     ],
     extras_require={
         'dev': [
+            "cleancat",
             "flake8",
             "pytest",
             "pytest-cov"
