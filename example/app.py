@@ -69,8 +69,9 @@ class PostResource(Resource):
     bulk_update_limit = 10
 
     def get_objects(self, **kwargs):
-        qs, has_more = super(PostResource, self).get_objects(**kwargs)
-        return qs, has_more, {"more": "stuff"}
+        objs, has_more, extra = super(PostResource, self).get_objects(**kwargs)
+        extra["more"] = "stuff"
+        return objs, has_more, extra
 
     def get_fields(self):
         fields = super(PostResource, self).get_fields()
