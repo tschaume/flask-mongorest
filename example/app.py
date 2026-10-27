@@ -223,12 +223,12 @@ class A(db.Document):
 
 
 class B(db.Document):
-    ref = db.ReferenceField(A, dbref=True)
+    ref = db.ReferenceField(document_type=A, dbref=True)
     txt = db.StringField()
 
 
 class C(db.Document):
-    ref = db.ReferenceField(A)
+    ref = db.ReferenceField(document_type=A)
     txt = db.StringField()
 
 
