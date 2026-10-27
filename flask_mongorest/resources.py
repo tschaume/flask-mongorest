@@ -1052,9 +1052,15 @@ class Resource(object):
             qs = qs.skip(skip).limit(limit + 1)  # get one extra to determine has_more
             if self.view_method != methods.Download:
                 qs = self.apply_field_pagination(qs, params)
-            extra["total_pages"] = int(extra["total_count"] / limit) + bool(
-                extra["total_count"] % limit
-            )
+            # ``limit`` of 0 is a count-only request (no page of objects is
+            # returned), so there are no pages to report and we must avoid a
+            # division by zero.
+            if limit:
+                extra["total_pages"] = int(extra["total_count"] / limit) + bool(
+                    extra["total_count"] % limit
+                )
+            else:
+                extra["total_pages"] = 0
 
         # Needs to be at the end as it returns a list, not a queryset
         if self.select_related:
@@ -1130,6 +1136,9 @@ class Resource(object):
             "remaining_time": kwargs.pop("remaining_time", None),
             "dirty_fields": kwargs.pop("dirty_fields", None),
         }
+        # EmbeddedDocuments cannot be saved on their own
+        if isinstance(obj, mongoengine.EmbeddedDocument):
+            return
         self.save_related_objects(obj, **kwargs)
         obj.save(signal_kwargs=signal_kwargs, **kwargs).reload()
         self._dirty_fields = None  # No longer dirty.
@@ -1253,6 +1262,10 @@ class Resource(object):
             "skip": kwargs.pop("skip_post_delete", False),
             "remaining_time": kwargs.pop("remaining_time", None),
         }
+        # EmbeddedDocuments are owned by their parent document and have no
+        # standalone ``delete``
+        if isinstance(obj, mongoengine.EmbeddedDocument):
+            return
         obj.delete(signal_kwargs=signal_kwargs)
 
 
