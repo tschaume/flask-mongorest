@@ -62,8 +62,14 @@ class MongoRest(object):
     def __init__(self, app, **kwargs):
         self.app = app
         self.url_prefix = kwargs.pop("url_prefix", "")
+        # The blueprint name (first arg) must be non-empty on Flask >= 2.3; this
+        # blueprint only registers template_folder (routes are added directly via
+        # app.add_url_rule), so fall back to a stable default when no url_prefix
+        # is given.
         app.register_blueprint(
-            Blueprint(self.url_prefix, __name__, template_folder="templates")
+            Blueprint(
+                self.url_prefix or "mongorest", __name__, template_folder="templates"
+            )
         )
 
     def register(self, **kwargs):
