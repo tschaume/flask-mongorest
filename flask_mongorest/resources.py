@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
-import orjson
 from collections import defaultdict
 from math import isnan
 from re import Pattern
 
 import mongoengine
+import orjson
 from atlasq import AtlasQuerySet
+from boltons.iterutils import default_enter, remap
 from bson.dbref import DBRef
 from fastnumbers import fast_int
 from flask import has_request_context, request, url_for
-from flatten_dict import unflatten, flatten
-from boltons.iterutils import remap, default_enter
+from flatten_dict import flatten, unflatten
 from mongoengine.base.datastructures import BaseDict
 
 try:
@@ -44,11 +44,12 @@ except ImportError:
 
 try:
     from marshmallow.exceptions import ValidationError as MarshmallowValidationError
-    from marshmallow.utils import _Missing, get_value, set_value
+    from marshmallow.utils import get_value, set_value
+    from marshmallow.utils import missing as missing_sentinel
     from marshmallow_mongoengine import ModelSchema
 except ImportError:
     ModelSchema = None
-    from glom import glom, assign
+    from glom import assign, glom
     from glom.core import PathAccessError
 
 from flask_mongorest import methods
@@ -157,9 +158,9 @@ class Resource(object):
         self._reverse_rename_fields = {}
         for k, v in self._rename_fields.items():
             self._reverse_rename_fields[v] = k
-        assert len(self._rename_fields) == len(
-            self._reverse_rename_fields
-        ), "Cannot rename multiple fields to the same name"
+        assert len(self._rename_fields) == len(self._reverse_rename_fields), (
+            "Cannot rename multiple fields to the same name"
+        )
         self._normal_filters, self._regex_filters = self.get_filters()
         self._child_document_resources = self.get_child_document_resources()
         self._default_child_resource_document = (
@@ -447,7 +448,7 @@ class Resource(object):
                     raise UnknownFieldError
         else:
             field_value = get_value(obj, field_name)
-            if isinstance(field_value, _Missing):
+            if field_value is missing_sentinel:
                 raise UnknownFieldError
 
         return self.serialize_field_value(
@@ -944,7 +945,9 @@ class Resource(object):
                     if order_par in self._normal_allowed_ordering or any(
                         p.match(order_par) for p in self._regex_allowed_ordering
                     ):
-                        order_par = self._reverse_rename_fields.get(order_par, order_par)
+                        order_par = self._reverse_rename_fields.get(
+                            order_par, order_par
+                        )
 
                     order_bys.append(f"{order_sign}{order_par}")
                     kwargs[f"{order_par}__exists".replace(".", "__")] = True
@@ -1028,7 +1031,9 @@ class Resource(object):
                 qs._aggrs.insert(1, {"$match": match._query})
         else:
             qs = self.apply_filters(qs, params)
-            qs = self.apply_ordering(qs, params)  # TODO respect ordering for Atlas Search?
+            qs = self.apply_ordering(
+                qs, params
+            )  # TODO respect ordering for Atlas Search?
             if qfilter:
                 qs = qfilter(qs)
 
@@ -1123,7 +1128,7 @@ class Resource(object):
         signal_kwargs = {
             "skip": kwargs.pop("skip_post_save", False),
             "remaining_time": kwargs.pop("remaining_time", None),
-            "dirty_fields": kwargs.pop("dirty_fields", None)
+            "dirty_fields": kwargs.pop("dirty_fields", None),
         }
         self.save_related_objects(obj, **kwargs)
         obj.save(signal_kwargs=signal_kwargs, **kwargs).reload()
@@ -1192,7 +1197,9 @@ class Resource(object):
 
                             return True
 
-                        flat = flatten(remap(obj[field], visit=visit, enter=enter), reducer="dot")
+                        flat = flatten(
+                            remap(obj[field], visit=visit, enter=enter), reducer="dot"
+                        )
 
                         for k, v in flatten(value, reducer="dot").items():
                             if k not in flat or str(v) != flat[k]:
@@ -1244,7 +1251,7 @@ class Resource(object):
     def delete_object(self, obj, parent_resources=None, **kwargs):
         signal_kwargs = {
             "skip": kwargs.pop("skip_post_delete", False),
-            "remaining_time": kwargs.pop("remaining_time", None)
+            "remaining_time": kwargs.pop("remaining_time", None),
         }
         obj.delete(signal_kwargs=signal_kwargs)
 
