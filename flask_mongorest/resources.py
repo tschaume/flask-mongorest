@@ -622,6 +622,9 @@ class Resource(object):
                     except UnknownFieldError:
                         pass
 
+            # DEVIATION: fields whose value is None are omitted from the
+            # serialized output entirely (the key is absent) rather than being
+            # emitted as an explicit null.
             if value is not None:
                 if isinstance(value, (float, int)) and isnan(value):
                     value = None
@@ -973,6 +976,7 @@ class Resource(object):
                             f'{par} must be an integer (got "{params[par]}" instead).'
                         )
                     if params[par] and int(params[par]) > max_limit:
+                        # DEVIATION: terser "too large" message than upstream.
                         raise ValidationError(f"Limit {params[par]} too large.")
                     limit = min(int(params[par]), max_limit)
                     break
@@ -981,6 +985,8 @@ class Resource(object):
 
             for par in ["_skip", "page"]:
                 if par in params:
+                    # DEVIATION: the _skip/page validation messages are terser
+                    # than the detailed _limit/per_page messages above.
                     if not isint(params[par]):
                         raise ValidationError(f"{par} must be an integer!")
                     if params[par] and int(params[par]) < 0:
@@ -1044,7 +1050,10 @@ class Resource(object):
         bulk_methods = {methods.BulkUpdate, methods.BulkDelete}
         limit = None
         if self.view_method in bulk_methods:
-            # limit the number of objects that can be bulk-updated at a time
+            # limit the number of objects that can be bulk-updated at a time.
+            # DEVIATION: an over-limit bulk request is silently capped to
+            # bulk_update_limit (only the first N objects are affected) rather
+            # than being rejected.
             qs = qs.limit(self.bulk_update_limit)
             limit = self.bulk_update_limit
         else:
