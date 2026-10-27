@@ -1239,15 +1239,18 @@ class Resource(object):
                         res = self._related_resources[field](
                             view_method=self.view_method
                         )
+                        # Properly remvoe referenced documents.
+                        # Previously, deleting a referenced document would delete the document itself
+                        new_list = []
                         for i, v in enumerate(value):
                             if v is None:
-                                continue  # no update requested for list item
-                            if i == len(obj[field]):
-                                obj[field].append(v)
-                            else:
-                                res.delete_object(obj[field][i])
-                                obj[field][i] = v
+                                if i < len(obj[field]):
+                                    new_list.append(obj[field][i])
+                                continue
                             res.save_object(v)
+                            new_list.append(v)
+                        obj[field] = new_list
+                        self._dirty_fields.append(field)
                 elif field_instance.primary_key:
                     raise ValidationError(
                         f"`{field}` is primary key and cannot be updated"
