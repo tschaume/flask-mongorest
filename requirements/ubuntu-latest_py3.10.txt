@@ -12,9 +12,11 @@ backports-datetime-fromisoformat==2.0.3
     # via marshmallow
 blinker==1.9.0
     # via flask
-boto3==1.43.118
+boltons==26.2.0
     # via flask-mongorest-mpcontribs (setup.py)
-botocore==1.43.118
+boto3==1.43.123
+    # via flask-mongorest-mpcontribs (setup.py)
+botocore==1.43.123
     # via
     #   boto3
     #   s3transfer
@@ -64,7 +66,11 @@ mongoengine==0.29.3
     #   atlasq-tschaume
     #   flask-mongoengine-tschaume
     #   marshmallow-mongoengine
+numpy==2.2.6
+    # via pandas
 orjson==3.13.0
+    # via flask-mongorest-mpcontribs (setup.py)
+pandas==2.3.3
     # via flask-mongorest-mpcontribs (setup.py)
 pymongo==4.18.3
     # via
@@ -74,8 +80,11 @@ python-dateutil==2.9.0.post0
     # via
     #   botocore
     #   flask-mongorest-mpcontribs (setup.py)
+    #   pandas
 python-mimeparse==2.0.0
     # via mimerender-pr36
+pytz==2026.6
+    # via pandas
 redis==8.1.0
     # via flask-sse
 requests==2.34.2
@@ -88,6 +97,8 @@ six==1.17.0
     #   python-dateutil
 typing-extensions==4.16.0
     # via marshmallow
+tzdata==2026.6
+    # via pandas
 urllib3==2.8.0
     # via
     #   botocore
