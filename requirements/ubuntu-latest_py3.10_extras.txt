@@ -12,9 +12,11 @@ backports-datetime-fromisoformat==2.0.3
     # via marshmallow
 blinker==1.9.0
     # via flask
-boto3==1.43.118
+boltons==26.2.0
     # via flask-mongorest-mpcontribs (setup.py)
-botocore==1.43.118
+boto3==1.43.126
+    # via flask-mongorest-mpcontribs (setup.py)
+botocore==1.43.126
     # via
     #   boto3
     #   s3transfer
@@ -22,7 +24,9 @@ certifi==2026.10.23
     # via requests
 charset-normalizer==3.5.2
     # via requests
-click==8.5.0
+cleancat==1.1.0
+    # via flask-mongorest-mpcontribs (setup.py)
+click==8.5.1
     # via flask
 coverage[toml]==7.16.2
     # via pytest-cov
@@ -74,10 +78,14 @@ mongoengine==0.29.3
     #   atlasq-tschaume
     #   flask-mongoengine-tschaume
     #   marshmallow-mongoengine
+numpy==2.2.6
+    # via pandas
 orjson==3.13.0
     # via flask-mongorest-mpcontribs (setup.py)
 packaging==26.3
     # via pytest
+pandas==2.3.3
+    # via flask-mongorest-mpcontribs (setup.py)
 pluggy==1.7.0
     # via
     #   pytest
@@ -92,7 +100,7 @@ pymongo==4.18.3
     # via
     #   flask-mongorest-mpcontribs (setup.py)
     #   mongoengine
-pytest==9.1.1
+pytest==9.2.0
     # via
     #   flask-mongorest-mpcontribs (setup.py)
     #   pytest-cov
@@ -101,9 +109,15 @@ pytest-cov==7.1.0
 python-dateutil==2.9.0.post0
     # via
     #   botocore
+    #   cleancat
     #   flask-mongorest-mpcontribs (setup.py)
+    #   pandas
 python-mimeparse==2.0.0
     # via mimerender-pr36
+pytz==2026.6
+    # via
+    #   cleancat
+    #   pandas
 redis==8.1.0
     # via flask-sse
 requests==2.34.2
@@ -122,6 +136,8 @@ typing-extensions==4.16.0
     # via
     #   exceptiongroup
     #   marshmallow
+tzdata==2026.6
+    # via pandas
 urllib3==2.8.0
     # via
     #   botocore
