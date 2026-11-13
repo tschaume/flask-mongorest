@@ -6,8 +6,8 @@ import sys
 import time
 import traceback
 from collections import deque
-from gzip import GzipFile
 from io import BytesIO, StringIO
+from zipfile import ZIP_DEFLATED, ZipFile
 from urllib.parse import unquote
 
 import boto3
@@ -28,7 +28,7 @@ TIMEOUT = 55  # in seconds
 BUCKET = os.environ.get("S3_DOWNLOADS_BUCKET", "mongorest-downloads")
 s3_client = boto3.client("s3")
 flask_mimerender = FlaskMimeRender(global_override_input_key="short_mime")
-register_mime("gz", ("application/gzip",))
+register_mime("zip", ("application/zip",))
 logger = logging.getLogger(__name__)
 
 
@@ -45,7 +45,7 @@ def render_html(**payload):
     return render_template("mongorest/debug.html", data=d)
 
 
-def render_gz(**payload):
+def render_zip(**payload):
     s3 = payload.get("s3")
 
     if s3 and s3["update"]:
@@ -102,21 +102,22 @@ def render_gz(**payload):
             if contents is None:
                 contents = json_normalize(payload["data"]).to_csv()
 
-        gzip_buffer = BytesIO()
+        zip_buffer = BytesIO()
         if isinstance(contents, StringIO):
             contents = contents.getvalue()
 
-        with GzipFile(mode="wb", fileobj=gzip_buffer) as gzip_file:
-            gzip_file.write(
-                contents.encode() if isinstance(contents, str) else contents
-            )  # need to give full contents to compression
+        # need to give full contents to compression
+        data_bytes = contents.encode() if isinstance(contents, str) else contents
+        # inner entry keeps the "{sha1}.{fmt}" name; the archive itself is "<key>"
+        inner_name = s3["key"][:-4] if s3["key"].endswith(".zip") else s3["key"]
+        with ZipFile(zip_buffer, "w", compression=ZIP_DEFLATED) as zip_file:
+            zip_file.writestr(inner_name, data_bytes)
 
-        body = gzip_buffer.getvalue()
+        body = zip_buffer.getvalue()
         s3_client.put_object(
             Bucket=BUCKET,
             Key=s3["key"],
-            ContentType=content_type,
-            ContentEncoding="gzip",
+            ContentType="application/zip",
             Body=body,
         )
         return body
@@ -172,7 +173,7 @@ class ResourceView(MethodView):
     def __init__(self):
         assert self.resource and self.methods
 
-    @flask_mimerender(default="json", json=render_json, html=render_html, gz=render_gz)
+    @flask_mimerender(default="json", json=render_json, html=render_html, zip=render_zip)
     def dispatch_request(self, *args, **kwargs):
         # keep all the logic in a helper method (_dispatch_request) so that
         # it's easy for subclasses to override this method (when they don't want to use
@@ -233,7 +234,7 @@ class ResourceView(MethodView):
         if pk:
             self._resource.view_method = methods.Fetch
         elif short_mime:
-            if short_mime != "gz":
+            if short_mime != "zip":
                 raise ValueError(f"{short_mime} not supported")
             self._resource.view_method = methods.Download
         else:
@@ -279,7 +280,7 @@ class ResourceView(MethodView):
                         dct, option=orjson.OPT_SORT_KEYS, default=encode_default
                     )
                 ).hexdigest()
-                key = f"{sha1}.{fmt}"
+                key = f"{sha1}.{fmt}.zip"
                 extra["s3"] = {"key": key, "update": False}
                 try:
                     s3_client_kwargs = dict(Bucket=BUCKET, Key=key)
@@ -294,7 +295,7 @@ class ResourceView(MethodView):
                         extra,
                         "200 OK",
                         {
-                            "Content-Disposition": f'attachment; filename="{key}.{short_mime}"'
+                            "Content-Disposition": f'attachment; filename="{key}"'
                         },
                     )
 
@@ -362,7 +363,7 @@ class ResourceView(MethodView):
             return (
                 ret,
                 "200 OK",
-                {"Content-Disposition": f'attachment; filename="{key}.{short_mime}"'},
+                {"Content-Disposition": f'attachment; filename="{key}"'},
             )
         else:
             return ret
