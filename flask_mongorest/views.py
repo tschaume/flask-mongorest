@@ -7,8 +7,8 @@ import time
 import traceback
 from collections import deque
 from io import BytesIO, StringIO
-from zipfile import ZIP_DEFLATED, ZipFile
 from urllib.parse import unquote
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import boto3
 import mongoengine
@@ -69,12 +69,10 @@ def render_zip(**payload):
                     obj[k] = {"id": obj[k]["id"]}
 
         if fmt == "json":
-            content_type = "application/json"
             contents = orjson.dumps(payload["data"], default=encode_default)
         else:
             from pandas import DataFrame, json_normalize
 
-            content_type = "text/csv"
             contents = None
 
             for obj in payload["data"]:
@@ -173,7 +171,9 @@ class ResourceView(MethodView):
     def __init__(self):
         assert self.resource and self.methods
 
-    @flask_mimerender(default="json", json=render_json, html=render_html, zip=render_zip)
+    @flask_mimerender(
+        default="json", json=render_json, html=render_html, zip=render_zip
+    )
     def dispatch_request(self, *args, **kwargs):
         # keep all the logic in a helper method (_dispatch_request) so that
         # it's easy for subclasses to override this method (when they don't want to use
@@ -294,9 +294,7 @@ class ResourceView(MethodView):
                     return (
                         extra,
                         "200 OK",
-                        {
-                            "Content-Disposition": f'attachment; filename="{key}"'
-                        },
+                        {"Content-Disposition": f'attachment; filename="{key}"'},
                     )
 
             # Create a queryset filter to control read access to the underlying objects
