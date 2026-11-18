@@ -50,7 +50,7 @@ def register_class(app, klass, **kwargs):
         endpoint = view_func.__name__ + Download.__name__
         app.add_url_rule(
             f"{url}download/<string:short_mime>/",
-            defaults={"pk": None, "short_mime": "gz"},
+            defaults={"pk": None, "short_mime": "zip"},
             view_func=view_func,
             methods=[Download.method],
             endpoint=endpoint,

@@ -1576,8 +1576,8 @@ class InternalTestCase(unittest.TestCase):
         )
 
 
-class RenderGzDownloadTestCase(unittest.TestCase):
-    """Regression tests for the gzip table-download fix in ``render_gz``."""
+class RenderZipDownloadTestCase(unittest.TestCase):
+    """Regression tests for the zip table-download output of ``render_zip``."""
 
     def setUp(self):
         import flask
@@ -1585,7 +1585,7 @@ class RenderGzDownloadTestCase(unittest.TestCase):
         self.app = flask.Flask(__name__)
 
     def _render(self, fmt, cell):
-        """Call the real render_gz for a one-table payload.
+        """Call the real render_zip for a one-table payload.
 
         Returns ``(body, s3_body, content_type)``.
         """
@@ -1611,11 +1611,24 @@ class RenderGzDownloadTestCase(unittest.TestCase):
                     "index": ["0", "1"],
                 }
             ]
-            with self.app.test_request_context(f"/tables/download/gz?format={fmt}"):
-                body = V.render_gz(data=payload, s3={"update": True, "key": f"k.{fmt}"})
+            with self.app.test_request_context(f"/tables/download/zip?format={fmt}"):
+                body = V.render_zip(
+                    data=payload, s3={"update": True, "key": f"k.{fmt}.zip"}
+                )
         finally:
             V.s3_client.put_object = orig
         return body, captured["Body"], captured["ContentType"]
+
+    @staticmethod
+    def _unzip(body):
+        """Extract the single entry from the zip archive as text."""
+        from io import BytesIO
+        from zipfile import ZipFile
+
+        with ZipFile(BytesIO(body)) as zf:
+            names = zf.namelist()
+            assert len(names) == 1, f"expected one entry, got {names}"
+            return zf.read(names[0]).decode("utf-8")
 
     @staticmethod
     def _table_block(csv_text):
@@ -1630,63 +1643,57 @@ class RenderGzDownloadTestCase(unittest.TestCase):
         )
 
     def test_csv_download_with_empty_string_unzips(self):
-        """The exact regression: a '' cell must still yield a valid gzip."""
-        import gzip
-
+        """The exact regression: a '' cell must still yield a valid zip."""
         body, s3_body, ct = self._render("csv", "")
-        self.assertEqual(ct, "text/csv")
+        self.assertEqual(ct, "application/zip")
         self.assertEqual(
             body, s3_body, "returned body differs from the object cached to S3"
         )
-        self.assertEqual(body[:2], b"\x1f\x8b", "not a gzip stream (bad magic bytes)")
-        df = self._table_block(gzip.decompress(body).decode("utf-8"))  # the 'unzip'
+        self.assertEqual(
+            body[:4], b"PK\x03\x04", "not a zip archive (bad magic bytes)"
+        )
+        df = self._table_block(self._unzip(body))
         self.assertEqual(list(df.columns), ["a", "b"])
         self.assertEqual(df["a"].iloc[0], "", "empty cell not preserved")
         self.assertEqual(df["a"].iloc[1], "3")
 
     def test_csv_download_with_null_unzips(self):
-        """A null (None) cell must also yield a valid gzip; None -> empty field."""
-        import gzip
-
+        """A null (None) cell must also yield a valid zip; None -> empty field."""
         body, s3_body, ct = self._render("csv", None)
-        self.assertEqual(ct, "text/csv")
+        self.assertEqual(ct, "application/zip")
         self.assertEqual(body, s3_body)
-        self.assertEqual(body[:2], b"\x1f\x8b", "not a gzip stream (bad magic bytes)")
-        df = self._table_block(gzip.decompress(body).decode("utf-8"))
+        self.assertEqual(
+            body[:4], b"PK\x03\x04", "not a zip archive (bad magic bytes)"
+        )
+        df = self._table_block(self._unzip(body))
         self.assertEqual(list(df.columns), ["a", "b"])
         self.assertEqual(df["a"].iloc[0], "", "null cell should render as empty field")
         self.assertEqual(df["a"].iloc[1], "3")
 
     def test_csv_download_without_null_unzips(self):
         """Baseline: a normal table also round-trips."""
-        import gzip
-
         body, s3_body, ct = self._render("csv", "1")
         self.assertEqual(body, s3_body)
-        df = self._table_block(gzip.decompress(body).decode("utf-8"))
+        df = self._table_block(self._unzip(body))
         self.assertEqual(df["a"].iloc[0], "1")
         self.assertEqual(df["b"].iloc[1], "4")
 
     def test_json_download_with_empty_string_unzips(self):
         """JSON path was never broken; confirm '' survives there too."""
-        import gzip
-
         body, s3_body, ct = self._render("json", "")
-        self.assertEqual(ct, "application/json")
+        self.assertEqual(ct, "application/zip")
         self.assertEqual(body, s3_body)
-        self.assertEqual(body[:2], b"\x1f\x8b")
-        data = json.loads(gzip.decompress(body).decode("utf-8"))
+        self.assertEqual(body[:4], b"PK\x03\x04")
+        data = json.loads(self._unzip(body))
         self.assertEqual(data[0]["data"][0][0], "", "empty cell not preserved in JSON")
 
     def test_json_download_with_null_unzips(self):
         """A null (None) cell is preserved as JSON null and still unzips."""
-        import gzip
-
         body, s3_body, ct = self._render("json", None)
-        self.assertEqual(ct, "application/json")
+        self.assertEqual(ct, "application/zip")
         self.assertEqual(body, s3_body)
-        self.assertEqual(body[:2], b"\x1f\x8b")
-        data = json.loads(gzip.decompress(body).decode("utf-8"))
+        self.assertEqual(body[:4], b"PK\x03\x04")
+        data = json.loads(self._unzip(body))
         self.assertIsNone(data[0]["data"][0][0], "null cell not preserved in JSON")
 
     def test_unsupported_format_is_rejected(self):
@@ -1700,11 +1707,11 @@ class RenderGzDownloadTestCase(unittest.TestCase):
 
         import flask_mongorest.views as V
 
-        src = inspect.getsource(V.render_gz)
+        src = inspect.getsource(V.render_zip)
         self.assertIn(
             "isinstance(contents, str)",
             src,
-            "render_gz does not contain the str->bytes fix; wrong version is "
+            "render_zip does not contain the str->bytes fix; wrong version is "
             f"installed (loaded from {V.__file__})",
         )
 
